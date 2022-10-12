@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{2b52dd62-66cc-4f7e-b88a-4785c67b7445}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\drawstuff">
+      <UniqueIdentifier>{53e90847-b839-4e00-83a1-b2d24983c214}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="drawstuff">
+      <UniqueIdentifier>{faa073e1-c6f5-444f-a930-85a3505a5394}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="drawstuff\src">
+      <UniqueIdentifier>{fffdbd71-e4e0-4f15-9ac3-d610dcc4adfa}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\drawstuff\drawstuff.h">
+      <Filter>include\drawstuff</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\drawstuff\version.h">
+      <Filter>include\drawstuff</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\drawstuff\src\internal.h">
+      <Filter>drawstuff\src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\drawstuff\src\resource.h">
+      <Filter>drawstuff\src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\drawstuff\src\drawstuff.cpp">
+      <Filter>drawstuff\src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\drawstuff\src\windows.cpp">
+      <Filter>drawstuff\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\drawstuff\src\resources.rc">
+      <Filter>drawstuff\src</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
