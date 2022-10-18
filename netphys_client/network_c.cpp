@@ -19,62 +19,13 @@ static char s_recvBuffer[BUFFER_SIZE];
 static int s_sendBufferSize = 0;
 static int s_recvBufferSize = 0;
 
-static SOCKET s_serverSocket = 0;
-static DWORD s_lastConnectAttempt = 0;
+static SOCKET s_serverSocket = INVALID_SOCKET;
 
 static int s_logFileHandle = 0;
 
 #define NET_LOG(x,...) LOG(s_logFileHandle, x, __VA_ARGS__) 
 #define NET_ERROR(x, ...) NET_LOG(x, __VA_ARGS__)
 
-//-------------------------------------------------------------------------------------------------
-static void ConnectToServer()
-{
-    if (s_serverSocket)
-    {
-        NET_LOG("Tried to connect to server when already connected");
-        return; // we're already connected
-    }
-
-    DWORD tickCount = GetTickCount();
-    if (s_lastConnectAttempt && tickCount - s_lastConnectAttempt < 1000)
-    {
-        return; // only try once a second
-    }
-    s_lastConnectAttempt = tickCount;
-
-    // Create the socket, and attempt to connect to the server
-    s_serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (s_serverSocket == INVALID_SOCKET)
-    {
-        NET_ERROR("Failed to create socket (%d)", WSAGetLastError());
-        return;
-    }
-
-    sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_port = htons(SERVER_PORT);
-    server.sin_addr.s_addr = inet_addr(SERVER_ADDR);
-
-
-    int error = connect(s_serverSocket, (struct sockaddr*)&server, sizeof(server));
-    if (error == SOCKET_ERROR)
-    {
-        NET_ERROR("Failed to connect to socket (%d)", error);
-        return;
-    }
-    // Change the socket mode on the listening socket from blocking to
-    // non-block so the application will not block waiting for requests
-    ULONG NonBlock = 1;
-    error = ioctlsocket(s_serverSocket, FIONBIO, &NonBlock);
-    if (error == SOCKET_ERROR)
-    {
-        NET_ERROR("Failed to set non-blocking on socket (%d)", error);
-        return;
-    }
-
-    NET_LOG("Successfully established connection to %s:%d...", SERVER_ADDR, SERVER_PORT);
-}
 //-------------------------------------------------------------------------------------------------
 bool Net_C_Init()
 {
@@ -87,7 +38,24 @@ bool Net_C_Init()
         return false;
     }
 
-    ConnectToServer();
+    // Create the socket, and attempt to connect to the server
+    s_serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s_serverSocket == INVALID_SOCKET)
+    {
+        NET_ERROR("Failed to create socket (%d)", WSAGetLastError());
+        return false;
+    }
+
+    // Change the socket mode to non-block
+    ULONG NonBlock = 1;
+    int error = ioctlsocket(s_serverSocket, FIONBIO, &NonBlock);
+    if (error == SOCKET_ERROR)
+    {
+        NET_ERROR("Failed to set non-blocking on socket (%d)", error);
+        return false;
+    }
+
+    NET_LOG("Successfully created socket...");
 
 	return true;
 }
@@ -97,7 +65,7 @@ bool Net_C_Deinit()
 {
     Log_Deinit(s_logFileHandle);
 
-    if (s_serverSocket)
+    if (s_serverSocket != INVALID_SOCKET)
     {
         if (!closesocket(s_serverSocket))
         {
@@ -105,6 +73,7 @@ bool Net_C_Deinit()
             return false;
         }
     }
+    s_serverSocket = INVALID_SOCKET;
 
     if (!WSACleanup())
     {
@@ -126,7 +95,11 @@ static bool Send(int inputMask)
 
     s_sendBufferSize = idx;
 
-    int ret = send(s_serverSocket, s_sendBuffer, s_sendBufferSize, 0);
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(SERVER_ADDR);
+    addr.sin_port = htons(SERVER_PORT);
+    int ret = sendto(s_serverSocket, s_sendBuffer, s_sendBufferSize, 0, (sockaddr*)&addr, sizeof(addr));
     if (ret == SOCKET_ERROR)
     {
         int error = WSAGetLastError();
@@ -155,7 +128,9 @@ static bool Recieve()
         return false;
     }
 
-    int ret = recv(s_serverSocket, s_recvBuffer, BUFFER_SIZE, 0);
+    sockaddr_in addr;
+    int sockAddrSize = sizeof(sockaddr_in);
+    int ret = recvfrom(s_serverSocket, s_recvBuffer, BUFFER_SIZE, 0, (sockaddr*)&addr, &sockAddrSize);
     if (ret == SOCKET_ERROR)
     {
         int error = WSAGetLastError();
@@ -177,7 +152,10 @@ static bool Recieve()
         return false; // error case for now... have to handle multiple packets
     }
 
-
+    if (addr.sin_addr.S_un.S_addr != inet_addr(SERVER_ADDR) && addr.sin_port != SERVER_PORT)
+    {
+        return true;
+    }
     // cache off new command frames and ack them
     //std::cout << " [Net] Recieved " << ret << " bytes" << std::endl;
     s_recvBufferSize = ret;
@@ -230,13 +208,9 @@ static bool Process()
 //-------------------------------------------------------------------------------------------------
 bool Net_C_Update(int inputMask)
 {
-    if (!s_serverSocket)
+    if (s_serverSocket == INVALID_SOCKET)
     {
-        ConnectToServer();
-    }
-
-    if (!s_serverSocket)
-    {
+        NET_ERROR("No server socket");
         return false;
     }
 

@@ -84,7 +84,7 @@ extern "C" void dsErrorWin(DWORD lastError, const char *fmt, ...)
         (LPTSTR)&lpMsgBuf,
         0, NULL);
     char buf[1024];
-    snprintf(buf, 1024, "%s LastError=%d(%s)\n", msg, lastError, lpMsgBuf);
+    snprintf(buf, 1024, "%s LastError=%d(%s)\n", msg, lastError, (LPTSTR)lpMsgBuf);
 
     errorBox("Error", buf);
     exit(1);
@@ -351,29 +351,6 @@ static void drawStuffStartup()
   if (!ghInstance)
     ghInstance = GetModuleHandleA (NULL);
   gnCmdShow = SW_SHOWNORMAL;		// @@@ fix this later
-
-  // redirect standard I/O to a new console (except on cygwin and mingw)
-#if !defined(__CYGWIN__) && !defined(__MINGW32__)
-  FreeConsole();
-  if (AllocConsole()==0) dsError ("AllocConsole() failed");
-//  if (freopen ("CONIN$","rt",stdin)==0) dsError ("could not open stdin");
-//  if (freopen ("CONOUT$","wt",stdout)==0) dsError ("could not open stdout");
-//  if (freopen ("CONOUT$","wt",stderr)==0) dsError ("could not open stderr");
-    
-    // DOUG_CHANGE: running multiple clients/servers seems fine.. just take stderr/stdout to the first one
-    if (freopen("CONIN$", "rt", stdin) == 0
-        || freopen("CONOUT$", "wt", stdout) == 0 
-        || freopen("CONOUT$", "wt", stderr) == 0)
-    {
-        FreeConsole();
-    }
-    else
-    {
-        BringWindowToTop(GetConsoleHwnd());
-        SetConsoleTitle("DrawStuff Messages");
-    }
-
-#endif
 
   // register the window class
   WNDCLASS wc;

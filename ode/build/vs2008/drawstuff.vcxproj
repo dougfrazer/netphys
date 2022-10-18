@@ -39,6 +39,7 @@
     <ProjectGuid>{82526361-85FA-5843-A1BD-041A519ED4F5}</ProjectGuid>
     <RootNamespace>drawstuff</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDoubleLib|Win32'" Label="Configuration">
@@ -113,40 +114,40 @@
     <_ProjectFileVersion>17.0.32819.101</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleDLL|Win32'">
-    <OutDir>..\..\lib\DebugSingleDLL\</OutDir>
-    <IntDir>obj\DebugSingleDLL\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleLib|Win32'">
-    <OutDir>..\..\lib\DebugSingleLib\</OutDir>
-    <IntDir>obj\DebugSingleLib\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDoubleDLL|Win32'">
-    <OutDir>..\..\lib\DebugDoubleDLL\</OutDir>
-    <IntDir>obj\DebugDoubleDLL\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDoubleLib|Win32'">
-    <OutDir>..\..\lib\DebugDoubleLib\</OutDir>
-    <IntDir>obj\DebugDoubleLib\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSingleDLL|Win32'">
-    <OutDir>..\..\lib\ReleaseSingleDLL\</OutDir>
-    <IntDir>obj\ReleaseSingleDLL\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSingleLib|Win32'">
-    <OutDir>..\..\lib\ReleaseSingleLib\</OutDir>
-    <IntDir>obj\ReleaseSingleLib\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDoubleDLL|Win32'">
-    <OutDir>..\..\lib\ReleaseDoubleDLL\</OutDir>
-    <IntDir>obj\ReleaseDoubleDLL\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDoubleLib|Win32'">
-    <OutDir>..\..\lib\ReleaseDoubleLib\</OutDir>
-    <IntDir>obj\ReleaseDoubleLib\drawstuff\</IntDir>
+    <OutDir>..\..\..\bin\</OutDir>
+    <IntDir>..\..\..\obj\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleDLL|Win32'">
     <ClCompile>

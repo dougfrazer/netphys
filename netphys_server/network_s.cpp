@@ -33,29 +33,45 @@ struct Connection
 {
     CHAR recvBuffer[DATA_BUFSIZE];
     CHAR sendBuffer[DATA_BUFSIZE];
-    SOCKET socket;
+    sockaddr_in address;
     DWORD bytesToSend;
     DWORD bytesRecvd;
     bool flagForRemove = false;
 
-    bool Read();
     bool Write();
     bool Process();
 };
 //-------------------------------------------------------------------------------------------------
 static std::vector<Connection> s_connections;
 //-------------------------------------------------------------------------------------------------
-static bool AddConnection(SOCKET socket)
+static void PushToReceiveBuffer(char* data, int length, const sockaddr_in& from)
 {
-    // Prepare SocketInfo structure for use
+    for (Connection& c : s_connections)
+    {
+        if (c.address.sin_addr.S_un.S_addr == from.sin_addr.S_un.S_addr && 
+            c.address.sin_port == from.sin_port)
+        {
+            if (c.bytesRecvd + length > DATA_BUFSIZE)
+            {
+                NET_ERROR("Not enough space in the buffer for packet of length %d", length);
+            }
+            else
+            {
+                memcpy(&c.recvBuffer[c.bytesRecvd], data, length);
+                c.bytesRecvd = length;
+            }
+            return;
+        }
+    }
+
+    // if we get here we couldn't find a matching connection... so create one
     Connection* newConn = new Connection;
-    newConn->socket = socket;
-    newConn->bytesRecvd = 0;
+    newConn->address = from;
+    memcpy(&newConn->recvBuffer, data, length);
+    newConn->bytesRecvd = length;
     newConn->bytesToSend = 0;
     s_connections.push_back(std::move(*newConn));
-
-    NET_LOG("Got a new connection %d!", socket);
-    return true;
+    NET_LOG("New Connection: %s:%u", inet_ntoa(from.sin_addr), ntohs(from.sin_port));
 }
 //-------------------------------------------------------------------------------------------------
 static void ClearBadConnections()
@@ -64,8 +80,7 @@ static void ClearBadConnections()
     {
         if (it->flagForRemove)
         {
-            NET_LOG("Removing connection %d", it->socket);
-            closesocket(it->socket);
+            NET_LOG("Removing connection %s:%u", inet_ntoa(it->address.sin_addr), ntohs(it->address.sin_port));
             it = s_connections.erase(it);
         }
         else
@@ -75,45 +90,12 @@ static void ClearBadConnections()
     }
 }
 //-------------------------------------------------------------------------------------------------
-bool Connection::Read()
-{
-    WSABUF buf;
-    buf.buf = recvBuffer;
-    buf.len = DATA_BUFSIZE;
-    DWORD BytesRecieved = 0;
-    DWORD Flags = 0;
-    int ret = WSARecv(socket, &buf, 1, &BytesRecieved, &Flags, NULL, NULL);
-    if (ret == SOCKET_ERROR)
-    {
-        int error = WSAGetLastError();
-        if (error != WSAEWOULDBLOCK)
-        {
-            // error
-            NET_ERROR("ERROR: Connection error during Write(): (%d)", error);
-            return false;
-        }
-    }
-    else if (BytesRecieved == 0)
-    {
-        // remote end closed the connection.. 
-        NET_LOG("Remote connection closed for %d", socket);
-        flagForRemove = true;
-        return true; // hmm this might be dangerous we deleted ourselves
-    }
-    bytesRecvd = BytesRecieved;
-    return true;
-}
-//-------------------------------------------------------------------------------------------------
 bool Connection::Write()
 {
     if (!bytesToSend)
         return true;
 
-    DWORD SendBytes = 0;
-    WSABUF buf;
-    buf.buf = sendBuffer;
-    buf.len = bytesToSend;
-    int ret = WSASend(socket, &buf, 1, &SendBytes, 0, NULL, NULL);
+    int ret = sendto(s_listenSocket, sendBuffer, bytesToSend, 0, (sockaddr*) & address, sizeof(sockaddr_in));
     if (ret == SOCKET_ERROR)
     {
         int error = WSAGetLastError();
@@ -124,15 +106,14 @@ bool Connection::Write()
         }
         return true; // this is fine, try again next frame
     }
-    else if (ret == 0)
+
+    if (ret != bytesToSend)
     {
-        // successfully sent SendBytes
-        bytesToSend = 0;
-        return true;
+        NET_ERROR("ERROR: Failed to send all the bytes in Write(), only sent %d of %d", ret, bytesToSend);
     }
 
-    NET_ERROR("ERROR: Unknown error in Write(): %d", ret);
-    return false;
+    bytesToSend = 0;
+    return true;
 }
 //-------------------------------------------------------------------------------------------------
 bool Connection::Process()
@@ -176,6 +157,8 @@ bool Connection::Process()
 //-------------------------------------------------------------------------------------------------
 bool Net_S_Init()
 {
+    s_logFileHandle = Log_Init("Net_Server");
+
     WSADATA wsaData;
     int err = WSAStartup(0x0202, &wsaData);
     if (err != 0)
@@ -186,30 +169,22 @@ bool Net_S_Init()
     }
 
     // Prepare a socket to listen for connections
-    s_listenSocket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
+    s_listenSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (s_listenSocket == INVALID_SOCKET)
     {
         NET_ERROR("Failed to set create listen socket");
         return false;
     }
 
-    SOCKADDR_IN InternetAddr;
-    InternetAddr.sin_family = AF_INET;
-    InternetAddr.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
-    InternetAddr.sin_port = htons(LISTEN_PORT);
-    if (bind(s_listenSocket, (PSOCKADDR)&InternetAddr, sizeof(InternetAddr)) == SOCKET_ERROR)
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY; //inet_addr(LISTEN_ADDR);
+    addr.sin_port = htons(LISTEN_PORT);
+    if (bind(s_listenSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) == SOCKET_ERROR)
     {
         NET_ERROR("Failed to set bind() on listen socket - (%d)", err);
         return false;
     }
-
-    err = listen(s_listenSocket, 5);
-    if (err != 0)
-    {
-        NET_ERROR("Failed to set listen() on listen socket- (%d)", err);
-        return false;
-    }
-
 
     // Change the socket mode on the listening socket from blocking to
     // non-block so the application will not block waiting for requests
@@ -220,9 +195,10 @@ bool Net_S_Init()
         return false;
     }
 
-    s_logFileHandle = Log_Init("Net_Server");
-
-    NET_LOG("Initialized network, listening on %s:%d", LISTEN_ADDR, LISTEN_PORT);
+    sockaddr_in listenSockAddr;
+    int size = sizeof(listenSockAddr);
+    getsockname(s_listenSocket, (SOCKADDR*)&listenSockAddr, &size);
+    NET_LOG("Initialized network, listening on %s:%d", inet_ntoa(listenSockAddr.sin_addr), htons(listenSockAddr.sin_port));
 
     return true;
 }
@@ -236,15 +212,9 @@ bool Net_S_Deinit()
     }
     s_listenSocket = INVALID_SOCKET;
 
-    for (Connection& c : s_connections)
-    {
-        if (!closesocket(c.socket))
-        {
-            NET_ERROR("ERROR: failed to close client socket (%d) - err (%d)", c.socket, WSAGetLastError());
-            return false;
-        }
-    }
+    // TODO: anything to do on each connection?  send client a 'shutdown' message or something?
     s_connections.clear();
+
     if (!WSACleanup())
     {
         NET_ERROR("ERROR: cleanup windows sockets (%d)", WSAGetLastError());
@@ -254,35 +224,36 @@ bool Net_S_Deinit()
     return true;
 }
 //-------------------------------------------------------------------------------------------------
-static bool LookForNewConnections()
+static char s_recvBuffer[DATA_BUFSIZE];
+static bool ReadSocket()
 {
-    // Look for new connections
-    SOCKET newConnection = accept(s_listenSocket, NULL, NULL);
-    if (newConnection != INVALID_SOCKET)
+    while (true)
     {
-        ULONG NonBlock = 1;
-        int err = ioctlsocket(newConnection, FIONBIO, &NonBlock);
-        if (err == SOCKET_ERROR)
+        sockaddr_in from;
+        int fromSize = sizeof(sockaddr_in);
+        int recvLength = recvfrom(s_listenSocket, s_recvBuffer, DATA_BUFSIZE, 0, (sockaddr*)&from, &fromSize);
+        if (recvLength == INVALID_SOCKET)
         {
-            NET_ERROR("ERROR: failed to set connection to non-blocking after accept (%d)", err);
-            return false;
-        }
-
-        if (!AddConnection(newConnection))
-        {
-            NET_ERROR("ERROR: failed to add new connection");
-            return false;
-        }
-    }
-    else
-    {
-        if (WSAGetLastError() != WSAEWOULDBLOCK)
-        {
+            int error = WSAGetLastError();
+            if (error == WSAEWOULDBLOCK)
+            {
+                return true; // no big deal
+            }
+            if (error == WSAECONNRESET)
+            {
+                // i think we can ignore this?  UDP is connectionless?
+                return true;
+            }
             // error with accept
-            NET_ERROR("ERROR: Got error on accept: (%d)", WSAGetLastError());
+            NET_ERROR("ERROR: Got error on recvfrom: (%d)", WSAGetLastError());
             return false;
         }
+        else
+        {
+            PushToReceiveBuffer(s_recvBuffer, recvLength, from);
+        }
     }
+
     return true;
 }
 //-------------------------------------------------------------------------------------------------
@@ -290,20 +261,9 @@ bool Net_S_Update()
 {
     ClearBadConnections();
 
-    if (!LookForNewConnections())
+    if (!ReadSocket())
     {
         return false;
-    }
-
-    //
-    // Read from all our sockets
-    //
-    for (Connection& c : s_connections)
-    {
-        if (!c.Read())
-        {
-            return false;
-        }
     }
 
     //

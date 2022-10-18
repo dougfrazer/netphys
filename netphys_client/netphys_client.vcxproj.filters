@@ -21,13 +21,13 @@
     <ClCompile Include="network_c.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\netphys_common\world.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\netphys_common\log.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\netphys_common\world.cpp">
       <Filter>common</Filter>
     </ClCompile>
   </ItemGroup>
