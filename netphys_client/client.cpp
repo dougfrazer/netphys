@@ -149,7 +149,7 @@ int main(int argc, char** argv)
     GetModuleFileNameA(NULL, exeFileName, MAX_PATH);
     std::string f(exeFileName);
     std::string exePath = f.substr(0, f.find_last_of("\\/"));
-    std::string texturePath = exePath + "/../../drawstuff/textures";
+    std::string texturePath = exePath + "/../ode/drawstuff/textures";
 
     // run simulation
     dsFunctions fn;
