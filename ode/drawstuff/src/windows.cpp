@@ -326,21 +326,6 @@ static LRESULT CALLBACK mainWndProc (HWND hWnd, UINT msg, WPARAM wParam,
   return 0;
 }
 
-
-// this comes from an MSDN example. believe it or not, this is the recommended
-// way to get the console window handle.
-
-static HWND GetConsoleHwnd()
-{
-  // the console window title to a "unique" value, then find the window
-  // that has this title.
-  char title[1024];
-  wsprintf (title,"DrawStuff:%d/%d",GetTickCount(),GetCurrentProcessId());
-  SetConsoleTitle (title);
-  Sleep(40);			// ensure window title has been updated
-  return FindWindow (NULL,title);
-}
-
 static const char* s_className = "NetPhys";
 
 static void drawStuffStartup()
