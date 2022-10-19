@@ -25,7 +25,7 @@ static std::chrono::steady_clock::time_point s_now;
 //-------------------------------------------------------------------------------------------------
 int main(int argc, char* argv)
 {
-    Log_Init();
+    Log_Init("server");
     World::Get()->Init();
 
     World::Get()->Create();

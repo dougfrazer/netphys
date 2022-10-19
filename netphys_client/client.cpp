@@ -159,7 +159,7 @@ void HandleInput(int input)
 //-------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-    Log_Init();
+    Log_Init("client");
     World::Get()->Init();
     
 

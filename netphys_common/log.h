@@ -1,7 +1,7 @@
 #pragma once
 
 
-void Log_Init();
+void Log_Init(const char* applicationName);
 void Log_Deinit();
 
 int Log_InitSystem(const char* fileName);

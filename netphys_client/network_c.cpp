@@ -165,34 +165,96 @@ static bool Recieve()
 
     sockaddr_in addr;
     int sockAddrSize = sizeof(sockaddr_in);
-    int ret = recvfrom(s_serverSocket, s_recvBuffer, BUFFER_SIZE, 0, (sockaddr*)&addr, &sockAddrSize);
-    if (ret == SOCKET_ERROR)
+    while (true)
     {
-        int error = WSAGetLastError();
-        if (error == WSAEWOULDBLOCK)
+        int bufferRemainingSize = BUFFER_SIZE - s_recvBufferSize;
+        if (!bufferRemainingSize)
         {
-            return true;
+            NET_ERROR("No space to recieve packets... getting backed up");
+            return false;
         }
-        NET_ERROR("Failed to recv(), (%d)", error);
-        return false;
-    }
-    if (ret == 0)
-    {
-        return true; // nothing here, no big deal
-    }
 
-    if (ret == BUFFER_SIZE)
-    {
-        NET_ERROR("Recieved more packets than can fit in a single buffer");
-        return false; // error case for now... have to handle multiple packets
+        int recvLength = recvfrom(s_serverSocket, &s_recvBuffer[s_recvBufferSize], BUFFER_SIZE - s_recvBufferSize, 0, (sockaddr*)&addr, &sockAddrSize);
+        if (recvLength == INVALID_SOCKET)
+        {
+            int error = WSAGetLastError();
+            if (error == WSAEWOULDBLOCK)
+            {
+                return true; // no big deal
+            }
+            if (error == WSAECONNRESET)
+            {
+                // i think we can ignore this?  UDP is connectionless?
+                return true;
+            }
+            // error with accept
+            NET_ERROR("ERROR: Got error on recvfrom: (%d)", WSAGetLastError());
+            return false;
+        }
+        else
+        {
+            if (addr.sin_addr.S_un.S_addr != inet_addr(SERVER_ADDR) && addr.sin_port != SERVER_PORT)
+            {
+                NET_ERROR("Got a packet from an address other than the server?");
+                return false;
+            }
+            s_recvBufferSize += recvLength;
+        }
     }
+    return true;
+}
+//-------------------------------------------------------------------------------------------------
+static bool ProcessPacket(Packet* p, int& len)
+{
+    switch (p->GetType())
+    {
+        case CLIENT_WORLD_STATE_UPDATE_ID:
+        {
+            ClientWorldStateUpdatePacket* msg = (ClientWorldStateUpdatePacket*)(p);
+            World_C_HandleUpdate(msg);
+            LOG("Recieving WorldStateUpdate for frame=%d", msg->frame.id);
+            SendServerWorldUpdateAck(msg->frame.id);
+            len += sizeof(ClientWorldStateUpdatePacket);
 
-    if (addr.sin_addr.S_un.S_addr != inet_addr(SERVER_ADDR) && addr.sin_port != SERVER_PORT)
-    {
-        return true;
+            if (s_state == CONNECTION_STATE_SENT_ACK)
+            {
+                // no need to keep retrying the ack
+                NET_LOG_CONSOLE("Got our first world update, setting state to open.");
+                s_state = CONNECTION_STATE_OPEN;
+            }
+            else if (s_state != CONNECTION_STATE_OPEN)
+            {
+                NET_ERROR("In an unexpected state when recieving world state update: %d", s_state);
+            }
+
+        }
+        break;
+
+        case CLIENT_HANDLE_WORLD_RESET_ID:
+        {
+            ResetCamera();
+            len += sizeof(ClientHandleWorldStateResetPacket);
+        }
+        break;
+
+        case CLIENT_NEW_CONNECTION_ID:
+        {
+            ClientNewConnection* msg = (ClientNewConnection*)(p);
+            World_C_HandleNewConnection(msg);
+            len += sizeof(ClientNewConnection);
+
+            s_state = CONNECTION_STATE_SENT_ACK;
+            s_connectionAckServerFrame = msg->frame.id;
+            SendServerConnectionAck();
+        }
+        break;
+
+        default:
+        {
+            NET_ERROR("Unknown packet (%d)", p->GetType());
+            return false; // unknown packet
+        }
     }
-    // cache off new command frames and ack them
-    s_recvBufferSize = ret;
     return true;
 }
 //-------------------------------------------------------------------------------------------------
@@ -200,59 +262,14 @@ static bool Process()
 {
     if(!s_recvBufferSize)
         return true;
-
+    LOG("Processing %d bytes...", s_recvBufferSize);
     int idx = 0;
     while (idx < s_recvBufferSize)
     {
-        // first character defines packet type
         Packet* p = (Packet*)(&s_recvBuffer[idx]);
-        switch (p->GetType())
+        if (!ProcessPacket(p, idx))
         {
-            case CLIENT_WORLD_STATE_UPDATE_ID:
-            {
-                ClientWorldStateUpdatePacket* msg = (ClientWorldStateUpdatePacket*)(p);
-                World_C_HandleUpdate(msg);
-                SendServerWorldUpdateAck(msg->frame.id);
-                idx += sizeof(ClientWorldStateUpdatePacket);
-                
-                if (s_state == CONNECTION_STATE_SENT_ACK)
-                {
-                    // no need to keep retrying the ack
-                    NET_LOG_CONSOLE("Got our first world update, setting state to open.");
-                    s_state = CONNECTION_STATE_OPEN;
-                }
-                else if (s_state != CONNECTION_STATE_OPEN)
-                {
-                    NET_ERROR("In an unexpected state when recieving world state update: %d", s_state);
-                }
-                
-            }
-            break;
-
-            case CLIENT_HANDLE_WORLD_RESET_ID:
-            {
-                ResetCamera();
-                idx += sizeof(ClientHandleWorldStateResetPacket);
-            }
-            break;
-
-            case CLIENT_NEW_CONNECTION_ID:
-            {
-                ClientNewConnection* msg = (ClientNewConnection*)(p);
-                World_C_HandleNewConnection(msg);
-                idx += sizeof(ClientNewConnection);
-
-                s_state = CONNECTION_STATE_SENT_ACK;
-                s_connectionAckServerFrame = msg->frame.id;
-                SendServerConnectionAck();
-            }
-            break;
-            
-            default:
-            {
-                NET_ERROR("Unknown packet (%d)", p->GetType());
-                return false; // unknown packet
-            }
+            return false;
         }
     }
 

@@ -57,6 +57,7 @@ private:
     void SendNewConnection();
     FrameNum lastAckedFrame = 0;
     void Send(char* data, int size);
+    bool ProcessPacket(Packet* p, unsigned int& len);
 };
 //-------------------------------------------------------------------------------------------------
 static std::vector<Connection> s_connections;
@@ -155,6 +156,7 @@ void Connection::Update()
     // always send the world state updates even if we haven't acked the original, the client can filter them out
     ClientWorldStateUpdatePacket msg;
     World_S_FillWorldStateUpdate(&msg, lastAckedFrame);
+    LOG("Sending WorldStateUpdate for frame=%d", msg.frame.id);
     Send((char*)&msg, sizeof(ClientWorldStateUpdatePacket));
 }
 //-------------------------------------------------------------------------------------------------
@@ -184,6 +186,98 @@ bool Connection::Write()
     return true;
 }
 //-------------------------------------------------------------------------------------------------
+bool Connection::ProcessPacket(Packet* p, unsigned int& len)
+{
+    switch (p->GetType())
+    {
+        case SERVER_NEW_CONNECTION_ID:
+        {
+            switch (state)
+            {
+                case STATE_NONE:
+                {
+                    // expected state.  just created the connection
+                    NET_LOG_CONSOLE("Got new connection message to %d", socket);
+                }
+                break;
+
+                case STATE_NEW_CONNECTION:
+                {
+                    // valid state... previous message must have gotten dropped... just ignore we're on a timeout loop anyway
+                    NET_LOG_CONSOLE("Got another new connection message for connection %d while in STATE_NEW_CONNECTION", socket);
+                }
+                break;
+
+                default:
+                {
+                    // error, shouldnt happen
+                    NET_ERROR("Got a new connection message for connection %d on a non-new connection, closing...", socket);
+                    flagForRemove = true;
+                }
+                break;
+            }
+
+            len += sizeof(ServerNewConnection);
+        }
+        break;
+
+        case SERVER_NEW_CONNECTION_ACK_ID:
+        {
+            if (state != STATE_NEW_CONNECTION)
+            {
+                NET_ERROR("Got NewConnectionAck when not expecting it");
+            }
+            else
+            {
+                ServerNewConnectionAck* msg = (ServerNewConnectionAck*)(p);
+                NET_LOG_CONSOLE("New connection acked for connection %d at frame=%d", socket, msg->frameNum);
+                lastAckedFrame = msg->frameNum;
+                state = STATE_OPEN;
+            }
+            len += sizeof(ServerNewConnectionAck);
+        }
+        break;
+
+        case SERVER_WORLD_UPDATE_ACK_ID:
+        {
+            if (state != STATE_OPEN)
+            {
+                NET_ERROR("Got NewConnectionAck when not expecting it");
+            }
+
+            ServerWorldUpdateAck* msg = (ServerWorldUpdateAck*)(p);
+            NET_LOG("Connection %d acked update at frame=%d", socket, msg->frameNum);
+            lastAckedFrame = msg->frameNum;
+            len += sizeof(ServerNewConnectionAck);
+        }
+        break;
+
+        case SERVER_INPUT_PACKET_ID:
+        {
+            if (state != STATE_OPEN)
+            {
+                NET_ERROR("Got an input packet for connection %d in invalid state (%d)", socket, state);
+            }
+            else
+            {
+                ServerInputPacket* msg = (ServerInputPacket*)(p);
+                World_S_HandleInputs(msg->value);
+            }
+            len += sizeof(ServerInputPacket);
+        }
+        break;
+
+
+
+        default:
+        {
+            NET_ERROR("ERROR: Recieved unknown packet type (%d)", p->GetType());
+            return false; // unknown packet
+        }
+    }
+    return true;
+}
+//-------------------------------------------------------------------------------------------------
 bool Connection::Process()
 {
     if(!bytesRecvd)
@@ -193,93 +287,10 @@ bool Connection::Process()
     while (idx < bytesRecvd)
     {
         Packet* p = (Packet*)(&recvBuffer[idx]);
-        switch (p->GetType())
+        if (!ProcessPacket(p, idx))
         {
-            case SERVER_NEW_CONNECTION_ID:
-            {
-                switch (state)
-                {
-                    case STATE_NONE:
-                    {
-                        // expected state.  just created the connection
-                        NET_LOG_CONSOLE("Got new connection message to %d", socket);
-                    }
-                    break;
-
-                    case STATE_NEW_CONNECTION:
-                    {
-                        // valid state... previous message must have gotten dropped... just ignore we're on a timeout loop anyway
-                        NET_LOG_CONSOLE("Got another new connection message for connection %d while in STATE_NEW_CONNECTION", socket);
-                    }
-                    break;
-
-                    default:
-                    {
-                        // error, shouldnt happen
-                        NET_ERROR("Got a new connection message for connection %d on a non-new connection, closing...", socket);
-                        flagForRemove = true;
-                    }
-                    break;
-                }
-
-                idx += sizeof(ServerNewConnection);
-            }
-            break;
-
-            case SERVER_NEW_CONNECTION_ACK_ID:
-            {
-                if (state != STATE_NEW_CONNECTION)
-                {
-                    NET_ERROR("Got NewConnectionAck when not expecting it");
-                }
-                else
-                {
-                    ServerNewConnectionAck* msg = (ServerNewConnectionAck*)(p);
-                    NET_LOG_CONSOLE("New connection acked for connection %d at frame=%d", socket, msg->frameNum);
-                    lastAckedFrame = msg->frameNum;
-                    state = STATE_OPEN;
-                }
-                idx += sizeof(ServerNewConnectionAck);
-            }
-            break;
-
-            case SERVER_WORLD_UPDATE_ACK_ID:
-            {
-                if (state != STATE_OPEN)
-                {
-                    NET_ERROR("Got NewConnectionAck when not expecting it");
-                }
-
-                ServerWorldUpdateAck* msg = (ServerWorldUpdateAck*)(p);
-                NET_LOG("Connection %d acked update at frame=%d", socket, msg->frameNum);
-                lastAckedFrame = msg->frameNum;
-                idx += sizeof(ServerNewConnectionAck);
-            }
-            break;
-
-            case SERVER_INPUT_PACKET_ID:
-            {
-                if (state != STATE_OPEN)
-                {
-                    NET_ERROR("Got an input packet for connection %d in invalid state (%d)", socket, state);
-                }
-                else
-                {
-                    ServerInputPacket* msg = (ServerInputPacket*)(p);
-                    World_S_HandleInputs(msg->value);
-                }
-                idx += sizeof(ServerInputPacket);
-            }
-            break;
-            
-            
-
-            default:
-            {
-                NET_ERROR("ERROR: Recieved unknown packet type (%d)", p->GetType());
-                bytesRecvd = 0;
-                return false; // unknown packet
-            }
+            bytesRecvd = 0;
+            return false;
         }
     }
 

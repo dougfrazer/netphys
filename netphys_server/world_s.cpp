@@ -77,7 +77,18 @@ void World_S_FillWorldStateUpdate(ClientWorldStateUpdatePacket* msg, FrameNum la
         return;
     }
     
-    LOG("would have to compute delta between %d and %d (%d frames)", lastAckedFrame, s_commandFrames.back().id, s_commandFrames.back().id- lastAckedFrame);
+    // TEMP DEBUG CODE
+    //double lastAckedFrameTime = 0.0f;
+    //for (const auto& frame : s_commandFrames)
+    //{
+    //    if (frame.id == lastAckedFrame)
+    //    {
+    //        lastAckedFrameTime = frame.timeMs;
+    //        break;
+    //    }
+    //}
+    //LOG("would have to compute delta between %d@%.2f and %d@%.2f (%d frames, %.2f ms)", lastAckedFrame, lastAckedFrameTime, s_commandFrames.back().id, s_commandFrames.back().timeMs, s_commandFrames.back().id- lastAckedFrame, s_commandFrames.back().timeMs - lastAckedFrameTime);
+    // END TEMP DEBUG CODE
     msg->frame = s_commandFrames.back();
 }
 //-------------------------------------------------------------------------------------------------

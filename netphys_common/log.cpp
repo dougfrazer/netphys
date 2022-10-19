@@ -40,17 +40,17 @@ void GetLastErrorString(char* buf, int bufSize)
 //-------------------------------------------------------------------------------------------------
 static int s_logHandle = 0;
 static FILE* s_genericLogFile = nullptr;
-static std::chrono::steady_clock::time_point s_startTime;
-void Log_Init()
+void Log_Init(const char* applicationName)
 {
-	s_logHandle = Log_InitSystem("GenericLog");
+	char buf[128];
+	snprintf(buf, 128, "Log_%s", applicationName);
+	s_logHandle = Log_InitSystem(buf);
 	if (s_logs.size() > 1)
 	{
 		// bad...
 		__debugbreak();
 	}
 	s_genericLogFile = s_logs[0].file;
-	s_startTime = std::chrono::high_resolution_clock::now();
 }
 //-------------------------------------------------------------------------------------------------
 void Log_Deinit()
@@ -166,9 +166,17 @@ void Log_Write(const char* path, int lineNum, int handle, bool toConsole, bool e
 			fputs(buf, filePtr);
 		}
 	}
-	auto now = std::chrono::high_resolution_clock::now();
-	float secondsSinceStart = (now - s_startTime).count() / (1000.f * 1000.f * 1000.f);
-	snprintf(buf, 1024, "[%20s:%4d][%7.2f] %s\n", base_filename.c_str(), lineNum, secondsSinceStart, msg);
+
+	uint64_t ms_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	uint64_t iter = ms_epoch % (1000 * 60 * 60);
+	unsigned int ms = iter % 1000;
+	iter /= 1000;
+	unsigned int sec = (iter) % 60;
+	iter /= 60;
+	unsigned int min = (iter) % 60;
+	char timeBuf[20];
+	snprintf(timeBuf, 20, "%um%d.%ds", min, sec, ms);
+	snprintf(buf, 1024, "[%20s:%4d][%12s] %s\n", base_filename.c_str(), lineNum, timeBuf, msg);
 	fputs(buf, filePtr);
 	if (filePtr != s_genericLogFile)
 	{
