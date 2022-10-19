@@ -50,5 +50,8 @@
     <ClInclude Include="world_s.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\netphys_common\lib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

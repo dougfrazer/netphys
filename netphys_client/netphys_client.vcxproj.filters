@@ -30,6 +30,9 @@
     <ClCompile Include="..\netphys_common\world.cpp">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="world_c.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="network_c.h">
@@ -45,6 +48,9 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="world_c.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

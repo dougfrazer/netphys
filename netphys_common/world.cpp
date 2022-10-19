@@ -2,6 +2,7 @@
 #include <ode/ode.h>
 #include "world.h"
 #include "common.h"
+#include <vector>
 
 static World s_world;
 
@@ -14,15 +15,12 @@ static dJointGroupID s_contactGroup;
 static dThreadingImplementationID s_threading;
 static dThreadingThreadPoolID s_threadPool;
 
-// world constants
-static constexpr dReal GRAVITY = 9.8f; // m/s^2
-
 
 // interact box constants
 static Object s_interacts[NUM_INTERACTS] = { 0 };
-static constexpr dReal BOX_SIZE = 0.5f;
-static constexpr dReal DENSITY = 5.0f;
-static constexpr dReal TOTAL_MASS = DENSITY * BOX_SIZE * BOX_SIZE * BOX_SIZE;
+
+static constexpr float PLAYER_ACCEL = 20.0f; // for now same in all directions
+
 
 
 // player constants
@@ -99,7 +97,7 @@ static void NearCallback(void*, dGeomID o1, dGeomID o2)
                 contact[i].surface.bounce = .5;
                 contact[i].surface.bounce_vel = .3;
             }
-            else if (contact[i].geom.g2 == s_player.m_geometry)
+            else if (contact[i].geom.g2 == s_player.m_geomID)
             {
                 // This is a convenience function: given a vector, it finds other 2 perpendicular vectors
                 dVector3 motiondir1, motiondir2;
@@ -123,7 +121,6 @@ static void NearCallback(void*, dGeomID o1, dGeomID o2)
                 contact[i].surface.soft_cfm = 0.04;
                 contact[i].surface.bounce = .5;
             }
-
             dJointID c = dJointCreateContact(s_worldID, s_contactGroup, contact + i);
             dJointAttach(c, b1, b2);
         }
@@ -151,17 +148,17 @@ void World::Reset()
         if (s_interacts[i].m_bodyID)
         {
             dBodyDestroy(s_interacts[i].m_bodyID);
-            dGeomDestroy(s_interacts[i].m_geometry);
+            dGeomDestroy(s_interacts[i].m_geomID);
         }
         s_interacts[i].m_bodyID = 0;
-        s_interacts[i].m_geometry = 0;
+        s_interacts[i].m_geomID = 0;
     }
     if (s_player.m_bodyID)
     {
         dBodyDestroy(s_player.m_bodyID);
-        dGeomDestroy(s_player.m_geometry);
+        dGeomDestroy(s_player.m_geomID);
         s_player.m_bodyID = 0;
-        s_player.m_geometry = 0;
+        s_player.m_geomID = 0;
     }
 
     // initialize the interactibles
@@ -177,9 +174,9 @@ void World::Reset()
 
             dMass mass;
             dMassSetBox(&mass, DENSITY, BOX_SIZE, BOX_SIZE, BOX_SIZE);
-            obj.m_geometry = dCreateBox(s_spaceID, BOX_SIZE, BOX_SIZE, BOX_SIZE);
+            obj.m_geomID = dCreateBox(s_spaceID, BOX_SIZE, BOX_SIZE, BOX_SIZE);
 
-            dGeomSetBody(obj.m_geometry, obj.m_bodyID);
+            dGeomSetBody(obj.m_geomID, obj.m_bodyID);
             dBodySetMass(obj.m_bodyID, &mass);
         }
     }
@@ -199,8 +196,8 @@ void World::CreatePlayer()
     dBodySetPosition(s_player.m_bodyID, 0, 0, 5.f);
     dMatrix3 R;
     dRSetIdentity(R);
-    s_player.m_geometry = dCreateSphere(s_spaceID, PLAYER_SIZE + .2f);  // make the physics sphere a little bigger
-    dGeomSetBody(s_player.m_geometry, s_player.m_bodyID);
+    s_player.m_geomID = dCreateSphere(s_spaceID, PLAYER_SIZE + .2f);  // make the physics sphere a little bigger
+    dGeomSetBody(s_player.m_geomID, s_player.m_bodyID);
 
     dMass mass;
     dMassSetSphere(&mass, DENSITY, PLAYER_SIZE);
@@ -215,4 +212,45 @@ const Object& World::GetPlayer()
 const Object& World::GetInteract(int index)
 {
     return s_interacts[index];
+}
+//-------------------------------------------------------------------------------------------------
+void World::HandleInputs(int inputMask)
+{
+    bool wantsJump = false;
+
+    if (World::Get()->GetPlayer().m_bodyID)
+    {
+        float a[3] = { 0.0f };
+        if (inputMask & INPUT_MOVE_FORWARD)
+        {
+            a[0] += PLAYER_ACCEL;
+        }
+        if (inputMask & INPUT_MOVE_BACKWARD)
+        {
+            a[0] -= PLAYER_ACCEL;
+        }
+        if (inputMask & INPUT_MOVE_LEFT)
+        {
+            a[1] += PLAYER_ACCEL;
+        }
+        if (inputMask & INPUT_MOVE_RIGHT)
+        {
+            a[1] -= PLAYER_ACCEL;
+        }
+        if (inputMask & INPUT_SPACE)
+        {
+            a[2] += PLAYER_ACCEL;
+        }
+        dMass m;
+        dBodyGetMass(World::Get()->GetPlayer().m_bodyID, &m);
+        dReal f[3] = { a[0] * m.mass, a[1] * m.mass, a[2] * m.mass };
+        dBodyAddForce(World::Get()->GetPlayer().m_bodyID, f[0], f[1], f[2]);
+    }
+    else
+    {
+        if (inputMask & INPUT_SPACE)
+        {
+            World::Get()->CreatePlayer();
+        }
+    }
 }

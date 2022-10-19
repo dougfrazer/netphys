@@ -21,11 +21,13 @@ static const char* LISTEN_ADDR = "127.0.0.1";
 
 static int s_logFileHandle = 0;
 
-#define NET_LOG(x,...) LOG(s_logFileHandle, x, __VA_ARGS__) 
-#define NET_ERROR(x, ...) NET_LOG(x, __VA_ARGS__)
+#define NET_LOG(x,...)          SYSTEM_LOG(s_logFileHandle, x, __VA_ARGS__) 
+#define NET_LOG_CONSOLE(x,...)  SYSTEM_LOG_WARNING(s_logFileHandle, x, __VA_ARGS__) 
+#define NET_WARNING(x,...)      SYSTEM_LOG_WARNING(s_logFileHandle, x, __VA_ARGS__) 
+#define NET_ERROR(x, ...)       SYSTEM_LOG_ERROR(s_logFileHandle, x, __VA_ARGS__)
 
 static SOCKET s_listenSocket = INVALID_SOCKET;
-
+static constexpr DWORD STATE_TIMEOUT = 2000;
 //-------------------------------------------------------------------------------------------------
 // Connection structure
 //-------------------------------------------------------------------------------------------------
@@ -40,6 +42,21 @@ struct Connection
 
     bool Write();
     bool Process();
+    void Update();
+    bool IsReady() const { return state == STATE_OPEN; }
+
+private:
+    enum STATE
+    {
+        STATE_NONE,
+        STATE_NEW_CONNECTION,
+        STATE_OPEN,
+    };
+    DWORD stateTime = 0;
+    STATE state = STATE_NONE;
+    void SendNewConnection();
+    FrameNum lastAckedFrame = 0;
+    void Send(char* data, int size);
 };
 //-------------------------------------------------------------------------------------------------
 static std::vector<Connection> s_connections;
@@ -90,6 +107,57 @@ static void ClearBadConnections()
     }
 }
 //-------------------------------------------------------------------------------------------------
+void Connection::SendNewConnection()
+{
+    if (bytesToSend != 0)
+    {
+        NET_ERROR("Why do we have bytes to send on a new connection...");
+    }
+    if (state != STATE_NONE && state != STATE_NEW_CONNECTION)
+    {
+        NET_ERROR("Why are we sending a new connection message to an open connection");
+    }
+
+
+    ClientNewConnection msg;
+    World_S_FillWorldState(&msg);
+    memcpy(&sendBuffer[bytesToSend], &msg, sizeof(ClientNewConnection));
+    bytesToSend += sizeof(ClientNewConnection);
+    stateTime = GetTickCount();
+    state = STATE_NEW_CONNECTION;
+
+    NET_LOG("Sending ClientNewConnection to %d with frame=%d", socket, msg.frame.id);
+}
+//-------------------------------------------------------------------------------------------------
+void Connection::Send(char* data, int size)
+{
+    // check to make sure there is space in the buffer?
+    if (bytesToSend + size >= DATA_BUFSIZE)
+    {
+        NET_ERROR("Packets are getting backed up.. closing connection");
+        flagForRemove = true;
+        return; // TODO: handle this case? 
+    }
+    memcpy(&sendBuffer[bytesToSend], data, size);
+    bytesToSend += size;
+}
+//-------------------------------------------------------------------------------------------------
+void Connection::Update()
+{
+    if (state == STATE_NONE || state == STATE_NEW_CONNECTION)
+    {
+        if (!stateTime || GetTickCount() - stateTime > STATE_TIMEOUT)
+        {
+            SendNewConnection();
+        }
+    }
+    
+    // always send the world state updates even if we haven't acked the original, the client can filter them out
+    ClientWorldStateUpdatePacket msg;
+    World_S_FillWorldStateUpdate(&msg, lastAckedFrame);
+    Send((char*)&msg, sizeof(ClientWorldStateUpdatePacket));
+}
+//-------------------------------------------------------------------------------------------------
 bool Connection::Write()
 {
     if (!bytesToSend)
@@ -127,13 +195,85 @@ bool Connection::Process()
         Packet* p = (Packet*)(&recvBuffer[idx]);
         switch (p->GetType())
         {
-            case INPUT_PACKET_ID:
+            case SERVER_NEW_CONNECTION_ID:
             {
-                InputPacket* i = (InputPacket*)(p);
-                World_S_HandleInput(i->value);
-                idx += sizeof(InputPacket);
+                switch (state)
+                {
+                    case STATE_NONE:
+                    {
+                        // expected state.  just created the connection
+                        NET_LOG_CONSOLE("Got new connection message to %d", socket);
+                    }
+                    break;
+
+                    case STATE_NEW_CONNECTION:
+                    {
+                        // valid state... previous message must have gotten dropped... just ignore we're on a timeout loop anyway
+                        NET_LOG_CONSOLE("Got another new connection message for connection %d while in STATE_NEW_CONNECTION", socket);
+                    }
+                    break;
+
+                    default:
+                    {
+                        // error, shouldnt happen
+                        NET_ERROR("Got a new connection message for connection %d on a non-new connection, closing...", socket);
+                        flagForRemove = true;
+                    }
+                    break;
+                }
+
+                idx += sizeof(ServerNewConnection);
             }
             break;
+
+            case SERVER_NEW_CONNECTION_ACK_ID:
+            {
+                if (state != STATE_NEW_CONNECTION)
+                {
+                    NET_ERROR("Got NewConnectionAck when not expecting it");
+                }
+                else
+                {
+                    ServerNewConnectionAck* msg = (ServerNewConnectionAck*)(p);
+                    NET_LOG_CONSOLE("New connection acked for connection %d at frame=%d", socket, msg->frameNum);
+                    lastAckedFrame = msg->frameNum;
+                    state = STATE_OPEN;
+                }
+                idx += sizeof(ServerNewConnectionAck);
+            }
+            break;
+
+            case SERVER_WORLD_UPDATE_ACK_ID:
+            {
+                if (state != STATE_OPEN)
+                {
+                    NET_ERROR("Got NewConnectionAck when not expecting it");
+                }
+
+                ServerWorldUpdateAck* msg = (ServerWorldUpdateAck*)(p);
+                NET_LOG("Connection %d acked update at frame=%d", socket, msg->frameNum);
+                lastAckedFrame = msg->frameNum;
+                idx += sizeof(ServerNewConnectionAck);
+            }
+            break;
+
+            case SERVER_INPUT_PACKET_ID:
+            {
+                if (state != STATE_OPEN)
+                {
+                    NET_ERROR("Got an input packet for connection %d in invalid state (%d)", socket, state);
+                }
+                else
+                {
+                    ServerInputPacket* msg = (ServerInputPacket*)(p);
+                    World_S_HandleInputs(msg->value);
+                }
+                idx += sizeof(ServerInputPacket);
+            }
+            break;
+            
+            
+
             default:
             {
                 NET_ERROR("ERROR: Recieved unknown packet type (%d)", p->GetType());
@@ -157,7 +297,7 @@ bool Connection::Process()
 //-------------------------------------------------------------------------------------------------
 bool Net_S_Init()
 {
-    s_logFileHandle = Log_Init("Net_Server");
+    s_logFileHandle = Log_InitSystem("Net_Server");
 
     WSADATA wsaData;
     int err = WSAStartup(0x0202, &wsaData);
@@ -198,7 +338,7 @@ bool Net_S_Init()
     sockaddr_in listenSockAddr;
     int size = sizeof(listenSockAddr);
     getsockname(s_listenSocket, (SOCKADDR*)&listenSockAddr, &size);
-    NET_LOG("Initialized network, listening on %s:%d", inet_ntoa(listenSockAddr.sin_addr), htons(listenSockAddr.sin_port));
+    NET_LOG_CONSOLE("Initialized network, listening on %s:%d", inet_ntoa(listenSockAddr.sin_addr), htons(listenSockAddr.sin_port));
 
     return true;
 }
@@ -220,7 +360,7 @@ bool Net_S_Deinit()
         NET_ERROR("ERROR: cleanup windows sockets (%d)", WSAGetLastError());
         return false;
     }
-        
+    Log_DeinitSystem(s_logFileHandle);
     return true;
 }
 //-------------------------------------------------------------------------------------------------
@@ -261,9 +401,26 @@ bool Net_S_Update()
 {
     ClearBadConnections();
 
+    //
+    // Give each connection a chance to move its state along if its not open yet
+    //
+    for (Connection& c : s_connections)
+    {
+        c.Update();
+    }
+
+
     if (!ReadSocket())
     {
         return false;
+    }
+
+    for (Connection& c : s_connections)
+    {
+        if (!c.Write())
+        {
+            return false;
+        }
     }
 
     //
@@ -291,19 +448,22 @@ bool Net_S_Update()
     return true;
 }
 //-------------------------------------------------------------------------------------------------
-bool Net_S_SendToAllClients(char* data, int size)
-{
-    for (Connection& c : s_connections)
-    {
-        // check to make sure there is space in the buffer?
-        if (c.bytesToSend + size >= DATA_BUFSIZE)
-        {
-            NET_LOG("Packets are getting backed up.. closing connection");
-            c.flagForRemove = true;
-            continue; // TODO: handle this case? 
-        }
-        memcpy(&c.sendBuffer[c.bytesToSend], data, size);
-        c.bytesToSend += size;
-    }
-    return true;
-}
+//bool Net_S_SendToAllClients(char* bytes, int numBytes)
+//{
+//    for (Connection& c : s_connections)
+//    {
+//        if(!c.IsReady())
+//            continue;
+//
+//        // check to make sure there is space in the buffer?
+//        if (c.bytesToSend + numBytes >= DATA_BUFSIZE)
+//        {
+//            NET_LOG("Packets are getting backed up.. closing connection");
+//            c.flagForRemove = true;
+//            continue; // TODO: handle this case? 
+//        }
+//        memcpy(&c.sendBuffer[c.bytesToSend], bytes, numBytes);
+//        c.bytesToSend += numBytes;
+//    }
+//    return true;
+//}

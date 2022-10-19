@@ -115,39 +115,39 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleDLL|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleLib|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDoubleDLL|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDoubleLib|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSingleDLL|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSingleLib|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDoubleDLL|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDoubleLib|Win32'">
     <OutDir>..\..\..\bin\</OutDir>
-    <IntDir>..\..\..\obj\</IntDir>
+    <IntDir>..\..\..\obj\drawstuff\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugSingleDLL|Win32'">
     <ClCompile>

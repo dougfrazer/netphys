@@ -22,17 +22,21 @@
 
 #include "../netphys_common/world.h"
 #include "../netphys_common/common.h"
+#include "../netphys_common/log.h"
 #include <windows.h>
 #include <string>
+#include <chrono>
 
 #include "network_c.h"
 #include "client.h"
+#include "world_c.h"
 
 static const float INERT_COLOR[3] = { (float)((0xFF) / 255), (float)((0x8F) / 255), (float)((0x8A) / 255) };
 static const float ACTIVE_COLOR[3] = { (float)((0x57) / 255), (float)((0xFF) / 255), (float)((0x70) / 255) };
 static const float PLAYER_COLOR[3] = { (float)((0xAB) / 255), (float)((0x43) / 255), (float)((0x0A) / 255) };
 
 unsigned int s_inputMask = 0;
+static bool s_standaloneMode = false;
 
 //-------------------------------------------------------------------------------------------------
 // Called before the sim loop starts
@@ -48,8 +52,6 @@ void Start()
 {
     World::Get()->Start();
     ResetCamera();
-    printf("Press SPACE to initialize the controllable ball:\n");
-    printf("   WASD to control\n");
 }
 
 
@@ -63,7 +65,7 @@ void Draw()
     for (int i = 0; i < NUM_INTERACTS; i++)
     {
         const Object& interact = World::Get()->GetInteract(i);
-        dGeomID g = interact.m_geometry;
+        dGeomID g = interact.m_geomID;
         dVector3 sides;
         const dReal* pos = dGeomGetPosition(g);
         const dReal* R = dGeomGetRotation(g);
@@ -76,13 +78,13 @@ void Draw()
         else
         {
             dsSetColor(INERT_COLOR[0], INERT_COLOR[1], INERT_COLOR[2]);
-        }
+}
         dsDrawBoxD(pos, R, sides);
     }
 
     if (World::Get()->GetPlayer().m_bodyID)
     {
-        dGeomID g = World::Get()->GetPlayer().m_geometry;
+        dGeomID g = World::Get()->GetPlayer().m_geomID;
         const dReal* pos = dGeomGetPosition(g);
         const dReal* R = dGeomGetRotation(g);
         dsSetColor(PLAYER_COLOR[0], PLAYER_COLOR[1], PLAYER_COLOR[2]);
@@ -92,24 +94,42 @@ void Draw()
 //-------------------------------------------------------------------------------------------------
 // Called before every frame
 //-------------------------------------------------------------------------------------------------
+static std::chrono::steady_clock::time_point s_now;
 void Update(int pause)
 {
-    //World::Get()->HandleInputs(s_inputMask);
-    //s_inputMask = 0;
+    auto start = std::chrono::high_resolution_clock::now();
+    float dt = (start - s_now).count() / (1000.f * 1000.f); // nano-seconds to milli-seconds
+    s_now = start;
 
-    double dt = dsElapsedTime();
-    constexpr float MAX_TICK = 1.0f / 30.0f; // max tick 30fps
-    if (dt > MAX_TICK)
+    if (s_standaloneMode)
     {
-        dt = MAX_TICK;
+        constexpr float MAX_TICK = 1.0f / 30.0f; // max tick 30fps
+        if (dt > MAX_TICK)
+        {
+            dt = MAX_TICK;
+        }
+
+        if (!pause)
+        {
+            World::Get()->HandleInputs(s_inputMask);
+            s_inputMask = 0;
+            World::Get()->Update(dt);
+        }
+    }
+    else
+    {
+        if (s_inputMask)
+        {
+            ServerInputPacket inputPacket;
+            inputPacket.value = s_inputMask;
+            Net_C_Send((char*)&inputPacket, sizeof(ServerInputPacket));
+            s_inputMask = 0;
+        }
+
+        Net_C_Update();
+        World_C_Update(dt);
     }
 
-    Net_C_Update(s_inputMask);
-
-    if (!pause)
-    {
-        World::Get()->Update(dt);
-    }
 
     Draw();
 }
@@ -139,11 +159,20 @@ void HandleInput(int input)
 //-------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
+    Log_Init();
     World::Get()->Init();
+    
 
-    World::Get()->Create();
-
-    Net_C_Init();
+    if (s_standaloneMode)
+    {
+        World::Get()->Create();
+    }
+    else
+    {
+        Net_C_Init();
+    }
+    
+    World_C_Init();
 
     char exeFileName[MAX_PATH] = { 0 };
     GetModuleFileNameA(NULL, exeFileName, MAX_PATH);
@@ -161,7 +190,11 @@ int main(int argc, char** argv)
     fn.path_to_textures = texturePath.c_str();
     dsSimulationLoop(argc, argv, 640, 480, &fn);
 
-    Net_C_Deinit();
-
+    if (!s_standaloneMode)
+    {
+        Net_C_Deinit();
+    }
+    World_C_Deinit();
     World::Get()->Deinit();
+    Log_Deinit();
 }

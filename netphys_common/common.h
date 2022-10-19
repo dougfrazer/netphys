@@ -5,6 +5,7 @@
 #endif
 
 #define arrsize(x) sizeof(x) / sizeof(*x)
+#define lerp(x, x0, x1, y0, y1)  ((fabsf(x0-x1)<0.000001) ? x0 : y0 + ((float)(y1 - y0) * ((x - x0) / (float)(x1 - x0))))
 
 enum PLAYER_INPUT
 {
@@ -17,16 +18,20 @@ enum PLAYER_INPUT
     INPUT_MOVE_RIGHT       = (1 << 5),
 };
 
-static constexpr int NUM_ROWS_COLS = 20;
+static constexpr int NUM_ROWS_COLS = 3;
 static constexpr int NUM_INTERACTS = NUM_ROWS_COLS * NUM_ROWS_COLS;
 
+// world constants
+static constexpr float GRAVITY = 9.8f; // m/s^2
+static constexpr float BOX_SIZE = 0.5f;
+static constexpr float DENSITY = 5.0f;
+static constexpr float TOTAL_MASS = DENSITY * BOX_SIZE * BOX_SIZE * BOX_SIZE;
 
 //
 // Packets
 //
-static constexpr int INPUT_PACKET_ID = 123456;
-static constexpr int WORLD_STATE_UPDATE_ID = 2342144;
-static constexpr int HANDLE_WORLD_RESET_ID = 2389;
+// this is crappy and doesn't consider endianness or anything
+// its just an initial implementation to get stood up quickly
 
 struct Packet
 {
@@ -36,26 +41,74 @@ private:
     int id;
 };
 
-struct InputPacket : public Packet
+//
+// to client
+//
+static constexpr int CLIENT_WORLD_STATE_UPDATE_ID = 2342144;
+static constexpr int CLIENT_HANDLE_WORLD_RESET_ID = 2389;
+static constexpr int CLIENT_NEW_CONNECTION_ID = 2342341;
+
+struct CommandFrameObject
 {
-    InputPacket() : Packet(INPUT_PACKET_ID) {}
+    float pos[3];
+    float rot[4];
+};
+typedef unsigned int FrameNum;
+struct CommandFrame
+{
+    FrameNum id;
+    double timeMs;
+    CommandFrameObject objects[NUM_INTERACTS];
+};
+
+struct ClientNewConnection : public Packet
+{
+    ClientNewConnection() : Packet(CLIENT_NEW_CONNECTION_ID) {}
+
+    CommandFrame frame;
+};
+
+
+struct ClientWorldStateUpdatePacket : public Packet
+{
+    ClientWorldStateUpdatePacket() : Packet(CLIENT_WORLD_STATE_UPDATE_ID) {}
+
+    CommandFrame frame;
+};
+
+struct ClientHandleWorldStateResetPacket : public Packet
+{
+    ClientHandleWorldStateResetPacket() : Packet(CLIENT_HANDLE_WORLD_RESET_ID) {}
+};
+
+
+//
+// to server
+//
+static constexpr int SERVER_NEW_CONNECTION_ID = 349898;
+static constexpr int SERVER_NEW_CONNECTION_ACK_ID = 438798;
+static constexpr int SERVER_WORLD_UPDATE_ACK_ID = 3478922;
+static constexpr int SERVER_INPUT_PACKET_ID = 123456;
+
+struct ServerNewConnection : public Packet
+{
+    ServerNewConnection() : Packet(SERVER_NEW_CONNECTION_ID) {}
+};
+
+struct ServerNewConnectionAck : public Packet
+{
+    ServerNewConnectionAck() : Packet(SERVER_NEW_CONNECTION_ACK_ID) {}
+    FrameNum frameNum;
+};
+
+struct ServerWorldUpdateAck : public Packet
+{
+    ServerWorldUpdateAck() : Packet(SERVER_WORLD_UPDATE_ACK_ID) {}
+    FrameNum frameNum;
+};
+
+struct ServerInputPacket : public Packet
+{
+    ServerInputPacket() : Packet(SERVER_INPUT_PACKET_ID) {}
     int value;
-};
-
-struct WorldStateUpdatePacket : public Packet
-{
-    WorldStateUpdatePacket() : Packet(WORLD_STATE_UPDATE_ID) {}
-    struct ObjectUpdate
-    {
-        float position[3];
-        float orientation[4];
-        bool valid;
-    };
-    ObjectUpdate interacts[10];
-    float now = 0.0f;
-};
-
-struct HandleWorldStateResetPacket : public Packet
-{
-    HandleWorldStateResetPacket() : Packet(HANDLE_WORLD_RESET_ID) {}
 };

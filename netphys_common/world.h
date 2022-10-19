@@ -1,11 +1,12 @@
 #pragma once
 
 #include <ode/ode.h>
+#include <vector>
 
 struct Object
 {
 	dBodyID m_bodyID;
-	dGeomID m_geometry;
+	dGeomID m_geomID;
 };
 
 class World
