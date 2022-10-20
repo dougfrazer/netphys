@@ -150,8 +150,44 @@ void World_C_Update(float dt)
 			(before->objects[i].rot[3] * (1.0f - lerp)) + (after->objects[i].rot[3] * lerp),
 			};
 		const Object& obj = World::Get()->GetInteract(i);
+		//dCopyVector3(obj.serverPos, pos);
+		//dCopyVector4(obj.serverRot, rot);
 		dGeomSetPosition(obj.m_geomID, pos[0], pos[1], pos[2]);
 		dGeomSetQuaternion(obj.m_geomID, rot);
+		if (before->objects[i].isEnabled)
+		{
+			dBodyEnable(obj.m_bodyID);
+		}
+		else
+		{
+			dBodyDisable(obj.m_bodyID);
+		}
+	}
+	if (before->player.isValid && after->player.isValid)
+	{
+		const Object& player = World::Get()->GetPlayer();
+		if (!player.m_bodyID)
+		{
+			World::Get()->CreatePlayer();
+		}
+		dVector3 pos = {
+			(before->player.pos[0] * (1.0f - lerp)) + (after->player.pos[0] * lerp),
+			(before->player.pos[1] * (1.0f - lerp)) + (after->player.pos[1] * lerp),
+			(before->player.pos[2] * (1.0f - lerp)) + (after->player.pos[2] * lerp),
+			};
+		dQuaternion rot = {
+			(before->player.rot[0] * (1.0f - lerp)) + (after->player.rot[0] * lerp),
+			(before->player.rot[1] * (1.0f - lerp)) + (after->player.rot[1] * lerp),
+			(before->player.rot[2] * (1.0f - lerp)) + (after->player.rot[2] * lerp),
+			(before->player.rot[3] * (1.0f - lerp)) + (after->player.rot[3] * lerp),
+		};
+		if (player.m_geomID)
+		{
+			//dCopyVector3(player.serverPos, pos);
+			//dCopyVector4(player.serverRot, rot);
+			dGeomSetPosition(player.m_geomID, pos[0], pos[1], pos[2]);
+			dGeomSetQuaternion(player.m_geomID, rot);
+		}
 	}
 
 	// erase old server frames?

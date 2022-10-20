@@ -50,7 +50,6 @@ void ResetCamera()
 //-------------------------------------------------------------------------------------------------
 void Start()
 {
-    World::Get()->Start();
     ResetCamera();
 }
 
@@ -173,6 +172,8 @@ int main(int argc, char** argv)
     }
     
     World_C_Init();
+
+    World::Get()->Start();
 
     char exeFileName[MAX_PATH] = { 0 };
     GetModuleFileNameA(NULL, exeFileName, MAX_PATH);

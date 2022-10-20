@@ -34,6 +34,28 @@ void World_S_Update(double now)
         newFrame.objects[i].rot[1] = (float)rot[1];
         newFrame.objects[i].rot[2] = (float)rot[2];
         newFrame.objects[i].rot[3] = (float)rot[3];
+        newFrame.objects[i].isValid = true;
+        newFrame.objects[i].isEnabled = dBodyIsEnabled(obj.m_bodyID);
+    }
+    const Object& player = World::Get()->GetPlayer();
+    if (player.m_bodyID)
+    {
+        const dReal* pos = dGeomGetPosition(player.m_geomID);
+        dQuaternion rot;
+        dGeomGetQuaternion(player.m_geomID, rot);
+        newFrame.player.pos[0] = (float)pos[0];
+        newFrame.player.pos[1] = (float)pos[1];
+        newFrame.player.pos[2] = (float)pos[2];
+        newFrame.player.rot[0] = (float)rot[0];
+        newFrame.player.rot[1] = (float)rot[1];
+        newFrame.player.rot[2] = (float)rot[2];
+        newFrame.player.rot[3] = (float)rot[3];
+        newFrame.player.isValid = true;
+        newFrame.player.isEnabled = true;
+    }
+    else
+    {
+        newFrame.player.isValid = false;
     }
     s_commandFrames.push_back(newFrame);
 
@@ -73,7 +95,7 @@ void World_S_FillWorldStateUpdate(ClientWorldStateUpdatePacket* msg, FrameNum la
     // TODO: use lastAckedTime to only send the changes since then
     if (!s_commandFrames.size())
     {
-        //WORLD_ERROR("Tried to send world state before any command frames were generated");
+        LOG_ERROR("Tried to send world state before any command frames were generated");
         return;
     }
     

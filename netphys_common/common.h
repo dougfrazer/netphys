@@ -52,6 +52,8 @@ struct CommandFrameObject
 {
     float pos[3];
     float rot[4];
+    bool isValid;
+    bool isEnabled;
 };
 typedef unsigned int FrameNum;
 struct CommandFrame
@@ -59,6 +61,7 @@ struct CommandFrame
     FrameNum id;
     double timeMs;
     CommandFrameObject objects[NUM_INTERACTS];
+    CommandFrameObject player;
 };
 
 struct ClientNewConnection : public Packet

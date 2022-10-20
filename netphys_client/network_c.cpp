@@ -262,7 +262,7 @@ static bool Process()
 {
     if(!s_recvBufferSize)
         return true;
-    LOG("Processing %d bytes...", s_recvBufferSize);
+
     int idx = 0;
     while (idx < s_recvBufferSize)
     {
