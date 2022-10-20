@@ -11,10 +11,10 @@
 
 std::vector<CommandFrame> s_serverFrames;
 static double s_lastTime = 0.0f;
-//static double s_clientTime = 0.0f;
-//static double s_clientTimeToServerTime = 0.0f;
+static double s_clientTime = 0.0f;
+static double s_clientTimeToServerTime = 0.0f;
 static DWORD s_connectionStartTime = 0;
-constexpr DWORD TIME_DELAY_MS = 300;
+constexpr DWORD TIME_DELAY_MS = 100;
 
 static int s_logFileHandle = 0;
 
@@ -36,10 +36,10 @@ void World_C_Deinit()
 
 void World_C_HandleNewConnection(const ClientNewConnection* msg)
 {
-//	if (s_clientTimeToServerTime)
-//	{
-//		WORLD_ERROR("Got initialize but we're already initialized");
-//	}
+	if (s_clientTimeToServerTime)
+	{
+		WORLD_ERROR("Got initialize but we're already initialized");
+	}
 
 	if (s_serverFrames.size())
 	{
@@ -47,7 +47,7 @@ void World_C_HandleNewConnection(const ClientNewConnection* msg)
 		s_serverFrames.clear();
 	}
 
-	//s_clientTimeToServerTime = msg->frame.timeMs;
+	s_clientTimeToServerTime = msg->frame.timeMs;
 	s_connectionStartTime = GetTickCount();
 
 	s_serverFrames.push_back(msg->frame);
@@ -55,11 +55,11 @@ void World_C_HandleNewConnection(const ClientNewConnection* msg)
 
 void World_C_HandleUpdate(const ClientWorldStateUpdatePacket* msg)
 {
-	//if (!s_clientTimeToServerTime)
-	//{
-	//	WORLD_ERROR("Got update before we got full world state");
-	//	return;
-	//}
+	if (!s_clientTimeToServerTime)
+	{
+		WORLD_ERROR("Got update before we got full world state");
+		return;
+	}
 
 	// todo: send down differences and construct the server frame
 	s_serverFrames.push_back(msg->frame);
@@ -67,11 +67,25 @@ void World_C_HandleUpdate(const ClientWorldStateUpdatePacket* msg)
 
 static double GetNextServerTime(float dt)
 {
-	// we want to move forward by dt
-	// but we also want to keep our buffer with the server
-	// ... todo: keep some kind of running average?
-	// simple solution for now: just take the most recent frame time and go back a little
-	return s_serverFrames.back().timeMs - TIME_DELAY_MS/2;
+	double nextClientTime = s_clientTime + dt;
+	double nextServerTime = nextClientTime + s_clientTimeToServerTime;
+	float timeFromLatestServer = float(s_serverFrames.back().timeMs - nextServerTime);
+
+	float drift = fabsf(timeFromLatestServer - (float)TIME_DELAY_MS);
+	if (drift > (1000.f / 30.f)) // more than 33ms
+	{
+		// we're drifting too far from our expected time delay,
+		// speed up or slow down the simulation on the client to
+		// get us closer to the expected TIME_DELAY_MS
+		float new_dt = lerp(timeFromLatestServer, 0, (float)TIME_DELAY_MS * 2.f, 0.f, dt * 2.f);
+		s_clientTime += new_dt;
+	}
+	else
+	{
+		s_clientTime += dt;
+	}
+
+	return s_clientTime + s_clientTimeToServerTime;
 }
 
 void World_C_Update(float dt)
@@ -87,9 +101,9 @@ void World_C_Update(float dt)
 		return;
 	}
 
-	//s_clientTime += dt;
-	//WORLD_LOG("Client Time: %.2f, mrst=%.2f , diff=%.2f", s_clientTime, s_serverFrames.back().timeMs, s_serverFrames.back().timeMs - s_clientTime);
+
 	double serverTime = GetNextServerTime(dt);
+
 	CommandFrame* before = nullptr;
 	CommandFrame* after = nullptr;
 	for(int i = 0; i < (int)s_serverFrames.size(); i++)
