@@ -33,6 +33,15 @@
     <ClCompile Include="world_c.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\netphys_common\player.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="player_c.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\netphys_common\object.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="network_c.h">
@@ -52,6 +61,15 @@
     </ClInclude>
     <ClInclude Include="world_c.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\netphys_common\player.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="player_c.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\netphys_common\object.h">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

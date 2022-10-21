@@ -15,6 +15,7 @@ void Log_Write(const char* file, int lineNum, int handle, bool toConsole, bool e
 #define SYSTEM_LOG_ERROR(h,str,...)   Log_Write(__FILE__, __LINE__, h, true,  true,  str, __VA_ARGS__)
 
 // Write to the generic log file
-#define LOG(str, ...)        Log_Write(__FILE__, __LINE__, false, false, 0, str, __VA_ARGS__)
-#define LOG_WARNING(str,...) Log_Write(__FILE__, __LINE__, true,  false, 0, str, __VA_ARGS__)
-#define LOG_ERROR(str,...)   Log_Write(__FILE__, __LINE__, true,  true,  0, str, __VA_ARGS__)
+#define LOG(str, ...)        Log_Write(__FILE__, __LINE__, 0, false, false, str, __VA_ARGS__)
+#define LOG_CONSOLE(str,...) Log_Write(__FILE__, __LINE__, 0, true,  false, str, __VA_ARGS__)  // maybe different than warning some day
+#define LOG_WARNING(str,...) Log_Write(__FILE__, __LINE__, 0, true,  false, str, __VA_ARGS__)
+#define LOG_ERROR(str,...)   Log_Write(__FILE__, __LINE__, 0, true,  true,  str, __VA_ARGS__)

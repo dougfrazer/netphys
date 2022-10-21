@@ -1,6 +1,6 @@
-#include <Windows.h>
-#include "network_s.h"
 
+#include "network_s.h"
+#include <Windows.h>
 
 #include "../netphys_common/world.h"
 #include "../netphys_common/common.h"
@@ -17,8 +17,6 @@ static constexpr DWORD TICK_RATE = 100; // milliseconds
 static bool s_running = true;
 static std::chrono::steady_clock::time_point s_startTime;
 static std::chrono::steady_clock::time_point s_now;
-
-
 
 //-------------------------------------------------------------------------------------------------
 // main

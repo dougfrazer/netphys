@@ -8,9 +8,16 @@
 #include "network_s.h"
 #include <vector>
 
+struct CommandFrame
+{
+    FrameNum id;
+    double timeMs;
+    std::vector<CommandFrameObject> objects;
+};
+
 std::vector<CommandFrame> s_commandFrames;
 static int s_frameCounter = 1;
-static constexpr float MAX_COMMAND_FRAME_SIZE = 5000.f; // only keep 5 seconds of command frames
+static constexpr float MAX_COMMAND_FRAME_TIME = 5000.f; // only keep 5 seconds of command frames
 //-------------------------------------------------------------------------------------------------
 void World_S_Update(double now)
 {
@@ -21,41 +28,27 @@ void World_S_Update(double now)
     CommandFrame newFrame;
     newFrame.id = s_frameCounter++; // hope this never overflows... at 10ms frames it'll take >400 days don't expect servers to be up that long
     newFrame.timeMs = now;
-    for (int i = 0; i < NUM_INTERACTS; i++)
+    for (Object* obj = GetFirstObject(); obj != nullptr; obj = GetNextObject(obj))
     {
-        const Object& obj = World::Get()->GetInteract(i);
-        const dReal* pos = dGeomGetPosition(obj.m_geomID);
-        dQuaternion rot;
-        dGeomGetQuaternion(obj.m_geomID, rot);
-        newFrame.objects[i].pos[0] = (float)pos[0];
-        newFrame.objects[i].pos[1] = (float)pos[1];
-        newFrame.objects[i].pos[2] = (float)pos[2];
-        newFrame.objects[i].rot[0] = (float)rot[0];
-        newFrame.objects[i].rot[1] = (float)rot[1];
-        newFrame.objects[i].rot[2] = (float)rot[2];
-        newFrame.objects[i].rot[3] = (float)rot[3];
-        newFrame.objects[i].isValid = true;
-        newFrame.objects[i].isEnabled = dBodyIsEnabled(obj.m_bodyID);
-    }
-    const Object& player = World::Get()->GetPlayer();
-    if (player.m_bodyID)
-    {
-        const dReal* pos = dGeomGetPosition(player.m_geomID);
-        dQuaternion rot;
-        dGeomGetQuaternion(player.m_geomID, rot);
-        newFrame.player.pos[0] = (float)pos[0];
-        newFrame.player.pos[1] = (float)pos[1];
-        newFrame.player.pos[2] = (float)pos[2];
-        newFrame.player.rot[0] = (float)rot[0];
-        newFrame.player.rot[1] = (float)rot[1];
-        newFrame.player.rot[2] = (float)rot[2];
-        newFrame.player.rot[3] = (float)rot[3];
-        newFrame.player.isValid = true;
-        newFrame.player.isEnabled = true;
-    }
-    else
-    {
-        newFrame.player.isValid = false;
+        dBodyID bodyID = obj->GetBodyID();
+        if (bodyID)
+        {
+            const dReal* pos = dBodyGetPosition(bodyID);
+            const dReal* rot = dBodyGetQuaternion(bodyID);
+
+            CommandFrameObject frameObj;
+            frameObj.guid = obj->GetGUID();
+            frameObj.pos[0] = (float)pos[0];
+            frameObj.pos[1] = (float)pos[1];
+            frameObj.pos[2] = (float)pos[2];
+            frameObj.rot[0] = (float)rot[0];
+            frameObj.rot[1] = (float)rot[1];
+            frameObj.rot[2] = (float)rot[2];
+            frameObj.rot[3] = (float)rot[3];
+            frameObj.isValid = true;
+            frameObj.isEnabled = dBodyIsEnabled(bodyID);
+            newFrame.objects.push_back(frameObj);
+        }
     }
     s_commandFrames.push_back(newFrame);
 
@@ -65,7 +58,7 @@ void World_S_Update(double now)
     auto it = s_commandFrames.begin();
     for (; it != s_commandFrames.end(); ++it)
     {
-        if (now - it->timeMs < MAX_COMMAND_FRAME_SIZE)
+        if (now - it->timeMs < MAX_COMMAND_FRAME_TIME)
         {
             break;
         }
@@ -78,49 +71,39 @@ void World_S_Update(double now)
 
 //-------------------------------------------------------------------------------------------------
 // Initial full state of the world packet
-void World_S_FillWorldState(struct ClientNewConnection* msg)
+void World_S_FillNewConnectionMessage(ClientNewConnection* msg)
 {
-    if (!s_commandFrames.size())
-    {
-        //WORLD_ERROR("Tried to send world state before any command frames were generated");
-        return;
-    }
-
-    msg->frame = s_commandFrames.back();
-}
-//-------------------------------------------------------------------------------------------------
-// incremental updates from last acked state
-void World_S_FillWorldStateUpdate(ClientWorldStateUpdatePacket* msg, FrameNum lastAckedFrame)
-{
-    // TODO: use lastAckedTime to only send the changes since then
     if (!s_commandFrames.size())
     {
         LOG_ERROR("Tried to send world state before any command frames were generated");
         return;
     }
-    
-    // TEMP DEBUG CODE
-    //double lastAckedFrameTime = 0.0f;
-    //for (const auto& frame : s_commandFrames)
-    //{
-    //    if (frame.id == lastAckedFrame)
-    //    {
-    //        lastAckedFrameTime = frame.timeMs;
-    //        break;
-    //    }
-    //}
-    //LOG("would have to compute delta between %d@%.2f and %d@%.2f (%d frames, %.2f ms)", lastAckedFrame, lastAckedFrameTime, s_commandFrames.back().id, s_commandFrames.back().timeMs, s_commandFrames.back().id- lastAckedFrame, s_commandFrames.back().timeMs - lastAckedFrameTime);
-    // END TEMP DEBUG CODE
-    msg->frame = s_commandFrames.back();
+    const CommandFrame& frame = s_commandFrames.back();
+    msg->PutID(frame.id);
+    msg->PutTimeMs(frame.timeMs);
+    msg->PutNumObjects(frame.objects.size());
+    for (const auto& obj : frame.objects)
+    {
+        msg->PutFrameObject(obj);
+    }
+    msg->Finalize();
 }
 //-------------------------------------------------------------------------------------------------
-
-
-void World_S_HandleInputs(int inputMask)
+void World_S_FillWorldUpdateMessage(ClientWorldStateUpdatePacket* msg, unsigned int lastAckedFrame)
 {
-    if (inputMask & INPUT_RESET_WORLD)
+    if (!s_commandFrames.size())
     {
-        // broadcast a reset world to everyone?
+        LOG_ERROR("Tried to send world state before any command frames were generated");
+        return;
     }
-    World::Get()->HandleInputs(inputMask);
+
+    const CommandFrame& frame = s_commandFrames.back();
+    msg->PutID(frame.id);
+    msg->PutTimeMs(frame.timeMs);
+    msg->PutNumObjects(frame.objects.size());
+    for (const auto& obj : frame.objects)
+    {
+        msg->PutFrameObject(obj);
+    }
+    msg->Finalize();
 }

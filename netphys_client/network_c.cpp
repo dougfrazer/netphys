@@ -21,12 +21,6 @@ static int s_recvBufferSize = 0;
 
 static SOCKET s_serverSocket = INVALID_SOCKET;
 
-static int s_logFileHandle = 0;
-#define NET_LOG(x,...)         SYSTEM_LOG(s_logFileHandle, x, __VA_ARGS__) 
-#define NET_LOG_CONSOLE(x,...) SYSTEM_LOG_WARNING(s_logFileHandle, x, __VA_ARGS__)
-#define NET_WARNING(x,...)     SYSTEM_LOG_WARNING(s_logFileHandle, x, __VA_ARGS__) 
-#define NET_ERROR(x, ...)      SYSTEM_LOG_ERROR(s_logFileHandle, x, __VA_ARGS__)
-
 enum CONNECTION_STATE
 {
     CONNECTION_STATE_NONE,
@@ -43,40 +37,38 @@ static constexpr DWORD CONNECTION_STATE_TIMEOUT = 2000; // if we don't get an ac
 //-------------------------------------------------------------------------------------------------
 static void SendServerNewConnection()
 {
-    NET_LOG("Sending new connection message to server...");
+    LOG("Sending new connection message to server...");
     ServerNewConnection msg;
-    memcpy(&s_sendBuffer[s_sendBufferSize], &msg, sizeof(ServerNewConnection));
-    s_sendBufferSize += sizeof(ServerNewConnection);
+    msg.Finalize();
+    Net_C_Send(&msg);
     s_connectionStateTime = GetTickCount();
 }
 //-------------------------------------------------------------------------------------------------
 static void SendServerConnectionAck()
 {
-    NET_LOG("Sending ConnectionAck for server frame=%d", s_connectionAckServerFrame);
+    LOG("Sending ConnectionAck for server frame=%d", s_connectionAckServerFrame);
     ServerNewConnectionAck msg;
-    msg.frameNum = s_connectionAckServerFrame;
-    memcpy(&s_sendBuffer[s_sendBufferSize], &msg, sizeof(ServerNewConnectionAck));
-    s_sendBufferSize += sizeof(ServerNewConnectionAck);
+    msg.PutFrameNum(s_connectionAckServerFrame);
+    msg.Finalize();
+    Net_C_Send(&msg);
     s_connectionStateTime = GetTickCount();
 }
 //-------------------------------------------------------------------------------------------------
 static void SendServerWorldUpdateAck(FrameNum frameNum)
 {
-    NET_LOG("Sending WorldUpdateAck for server frame=%d", frameNum);
+    LOG("Sending WorldUpdateAck for server frame=%d", frameNum);
     ServerWorldUpdateAck msg;
-    msg.frameNum = frameNum;
-    memcpy(&s_sendBuffer[s_sendBufferSize], &msg, sizeof(ServerNewConnectionAck));
-    s_sendBufferSize += sizeof(ServerNewConnectionAck);
+    msg.PutFrameNum(frameNum);
+    msg.Finalize();
+    Net_C_Send(&msg);
 }
 //-------------------------------------------------------------------------------------------------
 bool Net_C_Init()
 {
-    s_logFileHandle = Log_InitSystem("Net_Client");
-
     WSADATA wsd;
     if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
     {
-        NET_ERROR("Failed to initialize windows socket library");
+        LOG_ERROR("Failed to initialize windows socket library");
         return false;
     }
 
@@ -84,7 +76,7 @@ bool Net_C_Init()
     s_serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (s_serverSocket == INVALID_SOCKET)
     {
-        NET_ERROR("Failed to create socket (%d)", WSAGetLastError());
+        LOG_ERROR("Failed to create socket (%d)", WSAGetLastError());
         return false;
     }
 
@@ -93,11 +85,11 @@ bool Net_C_Init()
     int error = ioctlsocket(s_serverSocket, FIONBIO, &NonBlock);
     if (error == SOCKET_ERROR)
     {
-        NET_ERROR("Failed to set non-blocking on socket (%d)", error);
+        LOG_ERROR("Failed to set non-blocking on socket (%d)", error);
         return false;
     }
 
-    NET_LOG_CONSOLE("Successfully created socket...");
+    LOG_CONSOLE("Successfully created socket...");
     s_state = CONNECTION_STATE_CREATED;
 
 	return true;
@@ -106,13 +98,11 @@ bool Net_C_Init()
 //-------------------------------------------------------------------------------------------------
 bool Net_C_Deinit()
 {
-    Log_DeinitSystem(s_logFileHandle);
-
     if (s_serverSocket != INVALID_SOCKET)
     {
         if (!closesocket(s_serverSocket))
         {
-            NET_ERROR("Failed to close socket");
+            LOG_ERROR("Failed to close socket");
             return false;
         }
     }
@@ -120,7 +110,7 @@ bool Net_C_Deinit()
 
     if (!WSACleanup())
     {
-        NET_ERROR("Failed to cleanup windows socket library");
+        LOG_ERROR("Failed to cleanup windows socket library");
         return false;
     }
         
@@ -142,13 +132,13 @@ static bool Send()
         {
             return true;
         }
-        NET_ERROR("Failed to send(), (%d)", error);
+        LOG_ERROR("Failed to send(), (%d)", error);
         return false;
     }
     if (ret != s_sendBufferSize)
     {
         // error for now if we couldn't send the whole thing
-        NET_ERROR("Didn't send all the packets");
+        LOG_ERROR("Didn't send all the packets");
         return false;
     }
     s_sendBufferSize = 0;
@@ -159,7 +149,7 @@ static bool Recieve()
 {
     if(s_recvBufferSize)
     {
-        NET_ERROR("Can't recieve until we clear our buffer");
+        LOG_ERROR("Can't recieve until we clear our buffer");
         return false;
     }
 
@@ -170,7 +160,7 @@ static bool Recieve()
         int bufferRemainingSize = BUFFER_SIZE - s_recvBufferSize;
         if (!bufferRemainingSize)
         {
-            NET_ERROR("No space to recieve packets... getting backed up");
+            LOG_ERROR("No space to recieve packets... getting backed up");
             return false;
         }
 
@@ -188,14 +178,14 @@ static bool Recieve()
                 return true;
             }
             // error with accept
-            NET_ERROR("ERROR: Got error on recvfrom: (%d)", WSAGetLastError());
+            LOG_ERROR("ERROR: Got error on recvfrom: (%d)", WSAGetLastError());
             return false;
         }
         else
         {
             if (addr.sin_addr.S_un.S_addr != inet_addr(SERVER_ADDR) && addr.sin_port != SERVER_PORT)
             {
-                NET_ERROR("Got a packet from an address other than the server?");
+                LOG_ERROR("Got a packet from an address other than the server?");
                 return false;
             }
             s_recvBufferSize += recvLength;
@@ -204,27 +194,25 @@ static bool Recieve()
     return true;
 }
 //-------------------------------------------------------------------------------------------------
-static bool ProcessPacket(Packet* p, int& len)
+static bool ProcessPacket(Packet* p)
 {
     switch (p->GetType())
     {
         case CLIENT_WORLD_STATE_UPDATE_ID:
         {
             ClientWorldStateUpdatePacket* msg = (ClientWorldStateUpdatePacket*)(p);
-            World_C_HandleUpdate(msg);
-            LOG("Recieving WorldStateUpdate for frame=%d", msg->frame.id);
-            SendServerWorldUpdateAck(msg->frame.id);
-            len += sizeof(ClientWorldStateUpdatePacket);
+            FrameNum frameID = World_C_HandleUpdate(msg);
+            SendServerWorldUpdateAck(frameID);
 
             if (s_state == CONNECTION_STATE_SENT_ACK)
             {
                 // no need to keep retrying the ack
-                NET_LOG_CONSOLE("Got our first world update, setting state to open.");
+                LOG_CONSOLE("Got our first world update, setting state to open.");
                 s_state = CONNECTION_STATE_OPEN;
             }
             else if (s_state != CONNECTION_STATE_OPEN)
             {
-                NET_ERROR("In an unexpected state when recieving world state update: %d", s_state);
+                LOG_ERROR("In an unexpected state when recieving world state update: %d", s_state);
             }
 
         }
@@ -232,26 +220,24 @@ static bool ProcessPacket(Packet* p, int& len)
 
         case CLIENT_HANDLE_WORLD_RESET_ID:
         {
+            ClientHandleWorldStateResetPacket* msg = (ClientHandleWorldStateResetPacket*)(p);
             ResetCamera();
-            len += sizeof(ClientHandleWorldStateResetPacket);
         }
         break;
 
         case CLIENT_NEW_CONNECTION_ID:
         {
             ClientNewConnection* msg = (ClientNewConnection*)(p);
-            World_C_HandleNewConnection(msg);
-            len += sizeof(ClientNewConnection);
-
+            FrameNum frameID = World_C_HandleNewConnection(msg);
             s_state = CONNECTION_STATE_SENT_ACK;
-            s_connectionAckServerFrame = msg->frame.id;
+            s_connectionAckServerFrame = frameID;
             SendServerConnectionAck();
         }
         break;
 
         default:
         {
-            NET_ERROR("Unknown packet (%d)", p->GetType());
+            LOG_ERROR("Unknown packet (%d)", p->GetType());
             return false; // unknown packet
         }
     }
@@ -266,16 +252,26 @@ static bool Process()
     int idx = 0;
     while (idx < s_recvBufferSize)
     {
-        Packet* p = (Packet*)(&s_recvBuffer[idx]);
-        if (!ProcessPacket(p, idx))
+        Packet p;
+        int size = p.Deserialize(&s_recvBuffer[idx]);
+        if (!size)
         {
+            LOG_ERROR("Error parsing packet");
             return false;
         }
+        bool success = ProcessPacket(&p);
+        p.data.Free();
+        if (!success)
+        {
+            LOG_ERROR("No handler for packet");
+            return false;
+        }
+        idx += size;
     }
 
     if (idx != s_recvBufferSize)
     {
-        NET_ERROR("Got a partial packet or buffer error");
+        LOG_ERROR("Got a partial packet or buffer error");
         return false; // somehow didn't get packets to line up
     }
     s_recvBufferSize = 0;
@@ -286,7 +282,7 @@ bool Net_C_Update()
 {
     if (s_serverSocket == INVALID_SOCKET)
     {
-        NET_ERROR("No server socket");
+        LOG_ERROR("No server socket");
         return false;
     }
 
@@ -297,62 +293,53 @@ bool Net_C_Update()
             switch (s_state)
             {
                 case CONNECTION_STATE_CREATED:
-                    if(s_connectionStateTime) { NET_LOG_CONSOLE("Timed out on new connection message, sending again..."); }
+                    if(s_connectionStateTime) { LOG_CONSOLE("Timed out on new connection message, sending again..."); }
                     SendServerNewConnection();
                     break;
                 case CONNECTION_STATE_SENT_ACK:
-                    if(s_connectionStateTime) { NET_LOG_CONSOLE("Timed out on new connection ack message, sending again..."); }
+                    if(s_connectionStateTime) { LOG_CONSOLE("Timed out on new connection ack message, sending again..."); }
                     SendServerConnectionAck();
                     break;
                 default:
-                    NET_ERROR("Timed out in an invalid state (%d)", s_state);
+                    LOG_ERROR("Timed out in an invalid state (%d)", s_state);
                     break;
             }
         }
     }
 
+    // process any data that we recieved
+    if (!Process())
+    {
+        LOG_ERROR("Process failed");
+        return false;
+    }
+
 	// Send inputs to server
     if (!Send())
     {
-        NET_ERROR("Send failed");
+        LOG_ERROR("Send failed");
         return false;
     }
-        
 
 	// check for new data from server
     if (!Recieve())
     {
-        NET_ERROR("Recieve failed");
+        LOG_ERROR("Recieve failed");
         return false;
     }
-        
-
-    // process any data that we recieved
-    if (!Process())
-    {
-        NET_ERROR("Process failed");
-        return false;
-    }
-        
 
 	// notify world of error(? should this happen here?)
 	return true;
 }
 //-------------------------------------------------------------------------------------------------
-void Net_C_Send(char* bytes, int numBytes)
+void Net_C_Send(Packet* packet)
 {
-    if (s_state < CONNECTION_STATE_OPEN)
+    int numBytes = packet->Serialize(&s_sendBuffer[s_sendBufferSize], BUFFER_SIZE - s_sendBufferSize);
+    if (!numBytes)
     {
+        LOG_CONSOLE("Too many bytes in send buffer");
         return;
     }
-
-    if (s_sendBufferSize + numBytes > BUFFER_SIZE)
-    {
-        NET_LOG_CONSOLE("Too many bytes in send buffer");
-        return;
-    }
-
-    memcpy(&s_sendBuffer[s_sendBufferSize], bytes, numBytes);
     s_sendBufferSize += numBytes;
 
 }

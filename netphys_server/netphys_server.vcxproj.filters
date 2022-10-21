@@ -33,6 +33,15 @@
     <ClCompile Include="world_s.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="player_s.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\netphys_common\player.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\netphys_common\object.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\netphys_common\common.h">
@@ -50,8 +59,17 @@
     <ClInclude Include="world_s.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\netphys_common\lib.h">
+    <ClInclude Include="player_s.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\netphys_common\player.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\netphys_common\lib.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\netphys_common\object.h">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

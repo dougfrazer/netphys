@@ -17,17 +17,9 @@ static dThreadingThreadPoolID s_threadPool;
 
 
 // interact box constants
-static Object s_interacts[NUM_INTERACTS] = { 0 };
+static std::vector<WorldObject*> s_objects;
 
-static constexpr float PLAYER_ACCEL = 20.0f; // for now same in all directions
-
-
-
-// player constants
-static Object s_player = { 0 };
-static constexpr dReal PLAYER_SIZE = 2.f;
-
-
+// world constants
 static constexpr int MAX_CONTACTS = 8;
 
 //-------------------------------------------------------------------------------------------------
@@ -97,7 +89,7 @@ static void NearCallback(void*, dGeomID o1, dGeomID o2)
                 contact[i].surface.bounce = .5;
                 contact[i].surface.bounce_vel = .3;
             }
-            else if (contact[i].geom.g2 == s_player.m_geomID)
+            else
             {
                 // This is a convenience function: given a vector, it finds other 2 perpendicular vectors
                 dVector3 motiondir1, motiondir2;
@@ -110,13 +102,6 @@ static void NearCallback(void*, dGeomID o1, dGeomID o2)
                 contact[i].surface.motion1 = dCalcVectorDot3(mov2_vel, motiondir1);
 
                 contact[i].surface.mode = dContactBounce | dContactSoftCFM | dContactMotion1;
-                contact[i].surface.mu = 50.0; // was: dInfinity
-                contact[i].surface.soft_cfm = 0.04;
-                contact[i].surface.bounce = .5;
-            }
-            else
-            {
-                contact[i].surface.mode = dContactBounce | dContactSoftCFM;
                 contact[i].surface.mu = 50.0; // was: dInfinity
                 contact[i].surface.soft_cfm = 0.04;
                 contact[i].surface.bounce = .5;
@@ -143,41 +128,30 @@ void World::Create()
 void World::Reset()
 {
     // cleanup anything if we're resetting an active world
-    for (int i = 0; i < NUM_ROWS_COLS * NUM_ROWS_COLS; i++)
+    for (WorldObject* wo : s_objects)
     {
-        if (s_interacts[i].m_bodyID)
-        {
-            dBodyDestroy(s_interacts[i].m_bodyID);
-            dGeomDestroy(s_interacts[i].m_geomID);
-        }
-        s_interacts[i].m_bodyID = 0;
-        s_interacts[i].m_geomID = 0;
+        dBodyDestroy(wo->m_bodyID);
+        dGeomDestroy(wo->m_geomID);
+        delete wo;
     }
-    if (s_player.m_bodyID)
-    {
-        dBodyDestroy(s_player.m_bodyID);
-        dGeomDestroy(s_player.m_geomID);
-        s_player.m_bodyID = 0;
-        s_player.m_geomID = 0;
-    }
+    s_objects.clear();
 
     // initialize the interactibles
     for (int i = 0; i < NUM_ROWS_COLS; i++)
     {
         for (int j = 0; j < NUM_ROWS_COLS; j++)
         {
-            Object& obj = s_interacts[i * NUM_ROWS_COLS + j];
-            obj.m_bodyID = dBodyCreate(s_worldID);
-            dBodySetPosition(obj.m_bodyID, i - NUM_ROWS_COLS / 2, j - NUM_ROWS_COLS / 2, BOX_SIZE);
-            dMatrix3 R;
-            dRSetIdentity(R);
+            WorldObject* wo = new WorldObject;
+            wo->m_bodyID = dBodyCreate(s_worldID);
+            dBodySetPosition(wo->m_bodyID, i - NUM_ROWS_COLS / 2, j - NUM_ROWS_COLS / 2, BOX_SIZE);
 
             dMass mass;
             dMassSetBox(&mass, DENSITY, BOX_SIZE, BOX_SIZE, BOX_SIZE);
-            obj.m_geomID = dCreateBox(s_spaceID, BOX_SIZE, BOX_SIZE, BOX_SIZE);
+            wo->m_geomID = dCreateBox(s_spaceID, BOX_SIZE, BOX_SIZE, BOX_SIZE);
 
-            dGeomSetBody(obj.m_geomID, obj.m_bodyID);
-            dBodySetMass(obj.m_bodyID, &mass);
+            dGeomSetBody(wo->m_geomID, wo->m_bodyID);
+            dBodySetMass(wo->m_bodyID, &mass);
+            s_objects.push_back(wo);
         }
     }
 }
@@ -189,68 +163,17 @@ void World::Start()
     Reset();
 }
 //-------------------------------------------------------------------------------------------------
-void World::CreatePlayer()
+dBodyID World::CreateBody()
 {
-    s_player.m_bodyID = dBodyCreate(s_worldID);
-    dBodySetAutoDisableFlag(s_player.m_bodyID, 0);
-    dBodySetPosition(s_player.m_bodyID, 0, 0, 5.f);
-    dMatrix3 R;
-    dRSetIdentity(R);
-    s_player.m_geomID = dCreateSphere(s_spaceID, PLAYER_SIZE + .2f);  // make the physics sphere a little bigger
-    dGeomSetBody(s_player.m_geomID, s_player.m_bodyID);
-
-    dMass mass;
-    dMassSetSphere(&mass, DENSITY, PLAYER_SIZE);
-    dBodySetMass(s_player.m_bodyID, &mass);
+    return dBodyCreate(s_worldID);
 }
 //-------------------------------------------------------------------------------------------------
-const Object& World::GetPlayer()
+dGeomID World::CreateSphere(float radius)
 {
-    return s_player;
+    return dCreateSphere(s_spaceID, radius);
 }
 //-------------------------------------------------------------------------------------------------
-const Object& World::GetInteract(int index)
+const std::vector<WorldObject*>& World::GetWorldObjects() const
 {
-    return s_interacts[index];
-}
-//-------------------------------------------------------------------------------------------------
-void World::HandleInputs(int inputMask)
-{
-    bool wantsJump = false;
-
-    if (World::Get()->GetPlayer().m_bodyID)
-    {
-        float a[3] = { 0.0f };
-        if (inputMask & INPUT_MOVE_FORWARD)
-        {
-            a[0] += PLAYER_ACCEL;
-        }
-        if (inputMask & INPUT_MOVE_BACKWARD)
-        {
-            a[0] -= PLAYER_ACCEL;
-        }
-        if (inputMask & INPUT_MOVE_LEFT)
-        {
-            a[1] += PLAYER_ACCEL;
-        }
-        if (inputMask & INPUT_MOVE_RIGHT)
-        {
-            a[1] -= PLAYER_ACCEL;
-        }
-        if (inputMask & INPUT_SPACE)
-        {
-            a[2] += PLAYER_ACCEL;
-        }
-        dMass m;
-        dBodyGetMass(World::Get()->GetPlayer().m_bodyID, &m);
-        dReal f[3] = { a[0] * m.mass, a[1] * m.mass, a[2] * m.mass };
-        dBodyAddForce(World::Get()->GetPlayer().m_bodyID, f[0], f[1], f[2]);
-    }
-    else
-    {
-        if (inputMask & INPUT_SPACE)
-        {
-            World::Get()->CreatePlayer();
-        }
-    }
+    return s_objects;
 }

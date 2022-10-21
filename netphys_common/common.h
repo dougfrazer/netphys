@@ -4,8 +4,22 @@
 #define dDOUBLE
 #endif
 
+#include "../netphys_common/lib.h"
+
 #define arrsize(x) sizeof(x) / sizeof(*x)
-#define lerp(x, x0, x1, y0, y1)  ((fabsf(x0-x1)<0.000001) ? x0 : y0 + ((float)(y1 - y0) * ((x - x0) / (float)(x1 - x0))))
+#define lerp(x, x0, x1, y0, y1)  ((fabsf(x0-x1)<0.000001) ? (x0) : (y0 + ((float)(y1 - y0) * ((x - x0) / (float)(x1 - x0)))))
+
+
+struct NPGUID
+{
+    unsigned long long v;
+    bool operator==(const NPGUID& rhs) const { return v == rhs.v; }
+};
+static unsigned long long s_guid = 1;
+static NPGUID GetNewGUID() { return NPGUID({s_guid++}); }
+
+#define F_GUID "%llu"
+#define VA_GUID(x) x.v
 
 enum PLAYER_INPUT
 {
@@ -35,10 +49,43 @@ static constexpr float TOTAL_MASS = DENSITY * BOX_SIZE * BOX_SIZE * BOX_SIZE;
 
 struct Packet
 {
-    Packet(int _id) : id(_id) {}
-    int GetType() const { return id; }
+    Packet() { }
+    Packet(int _id) : m_id(_id) {}
+    int GetType() const { return m_id; }
+    int Serialize(char* buffer, unsigned int size)
+    {
+        const unsigned int packetSize = 8 + data.GetSize();
+        if (size < packetSize)
+        {
+            return 0;
+        }
+        int dataSize = data.GetSize();
+        memcpy(&buffer[0], &m_id, sizeof(int));
+        memcpy(&buffer[4], &dataSize, sizeof(int));
+        if (dataSize)
+        {
+            memcpy(&buffer[8], data.GetData(), data.GetSize());
+            data.Free();
+        }
+        return packetSize;
+    }
+    int Deserialize(char* buffer)
+    {
+        int dataSize = 0;
+        memcpy(&m_id, &buffer[0], sizeof(int));
+        memcpy(&dataSize, &buffer[4], sizeof(int));
+        if (dataSize)
+        {
+            data.Push(&buffer[8], dataSize);
+        }
+        data.Finalize();
+        return dataSize + 8;
+    }
+    void Finalize() { data.Finalize(); }
+public:
+    DataStore data;
 private:
-    int id;
+    int m_id;
 };
 
 //
@@ -50,25 +97,29 @@ static constexpr int CLIENT_NEW_CONNECTION_ID = 2342341;
 
 struct CommandFrameObject
 {
+    NPGUID guid;
     float pos[3];
     float rot[4];
     bool isValid;
     bool isEnabled;
 };
 typedef unsigned int FrameNum;
-struct CommandFrame
-{
-    FrameNum id;
-    double timeMs;
-    CommandFrameObject objects[NUM_INTERACTS];
-    CommandFrameObject player;
-};
 
 struct ClientNewConnection : public Packet
 {
     ClientNewConnection() : Packet(CLIENT_NEW_CONNECTION_ID) {}
 
-    CommandFrame frame;
+    void PutID(FrameNum id) { data.PushInt(id); }
+    void PutTimeMs(double timeMs) { data.PushDouble(timeMs); }
+    void PutNumObjects(int numObjects) { data.PushInt(numObjects); }
+    void PutFrameObject(const CommandFrameObject& obj) { data.Push((char*)&obj, sizeof(CommandFrameObject)); }
+
+    void Finalize() { data.Finalize(); }
+
+    FrameNum GetID()    { return data.GetInt(); }
+    double GetTimeMs()  { return data.GetDouble(); }
+    int GetNumObjects() { return data.GetInt(); }
+    const CommandFrameObject* GetFrameObject() { return (const CommandFrameObject*)data.Get(sizeof(CommandFrameObject)); }
 };
 
 
@@ -76,7 +127,17 @@ struct ClientWorldStateUpdatePacket : public Packet
 {
     ClientWorldStateUpdatePacket() : Packet(CLIENT_WORLD_STATE_UPDATE_ID) {}
 
-    CommandFrame frame;
+    void PutID(FrameNum id) { data.PushInt(id); }
+    void PutTimeMs(double timeMs) { data.PushDouble(timeMs); }
+    void PutNumObjects(int num) { data.PushInt(num); }
+    void PutFrameObject(const CommandFrameObject& obj) { data.Push((char*)&obj, sizeof(CommandFrameObject)); }
+
+    void Finalize() { data.Finalize(); }
+
+    FrameNum GetID()    { return data.GetInt(); }
+    double GetTimeMs()  { return data.GetDouble(); }
+    int GetNumObjects() { return data.GetInt(); }
+    const CommandFrameObject* GetFrameObject() { return (const CommandFrameObject*)data.Get(sizeof(CommandFrameObject)); }
 };
 
 struct ClientHandleWorldStateResetPacket : public Packet
@@ -101,17 +162,23 @@ struct ServerNewConnection : public Packet
 struct ServerNewConnectionAck : public Packet
 {
     ServerNewConnectionAck() : Packet(SERVER_NEW_CONNECTION_ACK_ID) {}
-    FrameNum frameNum;
+    
+    void PutFrameNum(FrameNum f) { data.PushUint(f); }
+    int GetFrameNum() { return data.GetUint(); }
 };
 
 struct ServerWorldUpdateAck : public Packet
 {
     ServerWorldUpdateAck() : Packet(SERVER_WORLD_UPDATE_ACK_ID) {}
-    FrameNum frameNum;
+
+    void PutFrameNum(FrameNum f) { data.PushUint(f); }
+    int GetFrameNum() { return data.GetUint(); }
 };
 
 struct ServerInputPacket : public Packet
 {
     ServerInputPacket() : Packet(SERVER_INPUT_PACKET_ID) {}
-    int value;
+
+    void PutMask(FrameNum f) { data.PushInt(f); }
+    int GetMask() { return data.GetInt(); }
 };

@@ -3,10 +3,14 @@
 #include <ode/ode.h>
 #include <vector>
 
-struct Object
+#include "../netphys_common/object.h"
+
+
+struct WorldObject : public Object
 {
-	dBodyID m_bodyID;
-	dGeomID m_geomID;
+	virtual dBodyID GetBodyID() const override { return m_bodyID; }
+	dBodyID m_bodyID = nullptr;
+	dGeomID m_geomID = nullptr;
 };
 
 class World
@@ -24,10 +28,8 @@ public:
 
 	void Reset();
 
-	void HandleInputs(int inputMask);
+	dBodyID CreateBody();
+	dGeomID CreateSphere(float radius);
 
-	void CreatePlayer();
-
-	const Object& GetPlayer();
-	const Object& GetInteract(int index);
+	const std::vector<WorldObject*>& GetWorldObjects() const;
 };

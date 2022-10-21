@@ -30,6 +30,7 @@
 #include "network_c.h"
 #include "client.h"
 #include "world_c.h"
+#include "player_c.h"
 
 static const float INERT_COLOR[3] = { (float)((0xFF) / 255), (float)((0x8F) / 255), (float)((0x8A) / 255) };
 static const float ACTIVE_COLOR[3] = { (float)((0x57) / 255), (float)((0xFF) / 255), (float)((0x70) / 255) };
@@ -37,6 +38,7 @@ static const float PLAYER_COLOR[3] = { (float)((0xAB) / 255), (float)((0x43) / 2
 
 unsigned int s_inputMask = 0;
 static bool s_standaloneMode = false;
+static Player_C s_player;
 
 //-------------------------------------------------------------------------------------------------
 // Called before the sim loop starts
@@ -61,33 +63,32 @@ void Draw()
 {
     dsSetTexture(DS_NONE);
 
-    for (int i = 0; i < NUM_INTERACTS; i++)
+    const std::vector<WorldObject*>& worldObjects = World::Get()->GetWorldObjects();
+    for (const WorldObject* wo : worldObjects)
     {
-        const Object& interact = World::Get()->GetInteract(i);
-        dGeomID g = interact.m_geomID;
+        dGeomID g = wo->m_geomID;
         dVector3 sides;
         const dReal* pos = dGeomGetPosition(g);
         const dReal* R = dGeomGetRotation(g);
         dGeomBoxGetLengths(g, sides);
 
-        if (dBodyIsEnabled(interact.m_bodyID))
+        if (dBodyIsEnabled(wo->m_bodyID))
         {
             dsSetColor(ACTIVE_COLOR[0], ACTIVE_COLOR[1], ACTIVE_COLOR[2]);
         }
         else
         {
             dsSetColor(INERT_COLOR[0], INERT_COLOR[1], INERT_COLOR[2]);
-}
+        }
         dsDrawBoxD(pos, R, sides);
     }
 
-    if (World::Get()->GetPlayer().m_bodyID)
+    if (s_player.m_geomID)
     {
-        dGeomID g = World::Get()->GetPlayer().m_geomID;
-        const dReal* pos = dGeomGetPosition(g);
-        const dReal* R = dGeomGetRotation(g);
+        const dReal* pos = dGeomGetPosition(s_player.m_geomID);
+        const dReal* R = dGeomGetRotation(s_player.m_geomID);
         dsSetColor(PLAYER_COLOR[0], PLAYER_COLOR[1], PLAYER_COLOR[2]);
-        dsDrawSphereD(pos, R, dGeomSphereGetRadius(g));
+        dsDrawSphereD(pos, R, (float)dGeomSphereGetRadius(s_player.m_geomID));
     }
 }
 //-------------------------------------------------------------------------------------------------
@@ -110,7 +111,7 @@ void Update(int pause)
 
         if (!pause)
         {
-            World::Get()->HandleInputs(s_inputMask);
+            s_player.HandleInputs(s_inputMask);
             s_inputMask = 0;
             World::Get()->Update(dt);
         }
@@ -120,8 +121,9 @@ void Update(int pause)
         if (s_inputMask)
         {
             ServerInputPacket inputPacket;
-            inputPacket.value = s_inputMask;
-            Net_C_Send((char*)&inputPacket, sizeof(ServerInputPacket));
+            inputPacket.PutMask(s_inputMask);
+            inputPacket.Finalize();
+            Net_C_Send(&inputPacket);
             s_inputMask = 0;
         }
 

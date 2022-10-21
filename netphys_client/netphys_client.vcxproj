@@ -148,17 +148,23 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\netphys_common\log.cpp" />
+    <ClCompile Include="..\netphys_common\object.cpp" />
+    <ClCompile Include="..\netphys_common\player.cpp" />
     <ClCompile Include="..\netphys_common\world.cpp" />
     <ClCompile Include="client.cpp" />
     <ClCompile Include="network_c.cpp" />
+    <ClCompile Include="player_c.cpp" />
     <ClCompile Include="world_c.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\netphys_common\common.h" />
     <ClInclude Include="..\netphys_common\log.h" />
+    <ClInclude Include="..\netphys_common\object.h" />
+    <ClInclude Include="..\netphys_common\player.h" />
     <ClInclude Include="..\netphys_common\world.h" />
     <ClInclude Include="client.h" />
     <ClInclude Include="network_c.h" />
+    <ClInclude Include="player_c.h" />
     <ClInclude Include="world_c.h" />
   </ItemGroup>
   <ItemGroup>
