@@ -4,6 +4,12 @@
 #include "common.h"
 #include <vector>
 
+#ifdef _NPCLIENT
+#include "../netphys_client/objectmanager_c.h"
+#else
+#include "../netphys_server/objectmanager_s.h"
+#endif
+
 static World s_world;
 
 // world variables
@@ -132,7 +138,11 @@ void World::Reset()
     {
         dBodyDestroy(wo->m_bodyID);
         dGeomDestroy(wo->m_geomID);
-        delete wo;
+    #ifdef _NPCLIENT
+        ObjectManager_C_FreeWorldObject(wo);
+    #else
+        ObjectManager_S_FreeWorldObject(wo);
+    #endif
     }
     s_objects.clear();
 
@@ -141,16 +151,14 @@ void World::Reset()
     {
         for (int j = 0; j < NUM_ROWS_COLS; j++)
         {
-            WorldObject* wo = new WorldObject;
-            wo->m_bodyID = dBodyCreate(s_worldID);
-            dBodySetPosition(wo->m_bodyID, i - NUM_ROWS_COLS / 2, j - NUM_ROWS_COLS / 2, BOX_SIZE);
-
-            dMass mass;
-            dMassSetBox(&mass, DENSITY, BOX_SIZE, BOX_SIZE, BOX_SIZE);
-            wo->m_geomID = dCreateBox(s_spaceID, BOX_SIZE, BOX_SIZE, BOX_SIZE);
-
-            dGeomSetBody(wo->m_geomID, wo->m_bodyID);
-            dBodySetMass(wo->m_bodyID, &mass);
+            // super crappy :-/ whatever, figure it out later
+            // is it assumed if we're in here as a client we're in standalone??
+        #ifdef _NPCLIENT
+            WorldObject* wo = ObjectManager_C_CreateWorldObject(GetNewGUID(ObjectType_WorldObject));
+        #else
+            WorldObject* wo = ObjectManager_S_CreateWorldObject();
+        #endif
+            wo->Init(float(i - NUM_ROWS_COLS / 2), float(j - NUM_ROWS_COLS / 2), BOX_SIZE);
             s_objects.push_back(wo);
         }
     }
@@ -171,6 +179,11 @@ dBodyID World::CreateBody()
 dGeomID World::CreateSphere(float radius)
 {
     return dCreateSphere(s_spaceID, radius);
+}
+//-------------------------------------------------------------------------------------------------
+dGeomID World::CreateCube(float size)
+{
+    return dCreateBox(s_spaceID, size,size,size);
 }
 //-------------------------------------------------------------------------------------------------
 const std::vector<WorldObject*>& World::GetWorldObjects() const

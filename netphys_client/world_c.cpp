@@ -6,6 +6,8 @@
 #include "../netphys_common/log.h"
 #include "network_c.h"
 #include "windows.h"
+#include "objectmanager_c.h"
+#include "player_c.h"
 
 struct CommandFrame
 {
@@ -62,6 +64,35 @@ FrameNum World_C_HandleNewConnection(ClientNewConnection* msg)
 	return newFrame.id;
 }
 
+void HandleNewObject(const NPGUID& guid, float x, float y, float z)
+{
+	switch (guid.GetType())
+	{
+		case ObjectType_Player:
+		{
+			Player_C* player = dynamic_cast<Player_C*>(ObjectManager_C_CreateObject(guid));
+			assert(player);
+			player->Init(x,y,z);
+		}
+		break;
+
+		case ObjectType_WorldObject:
+		{
+			WorldObject* wo = dynamic_cast<WorldObject*>(ObjectManager_C_CreateObject(guid));
+			assert(wo);
+			wo->Init(x, y, z);
+		}
+		break;
+
+		default:
+		{
+			LOG_ERROR("Got invalid guid type: %d",  (int)guid.GetType());
+		}
+		break;
+	}
+
+}
+
 FrameNum World_C_HandleUpdate(ClientWorldStateUpdatePacket* msg)
 {
 	if (!s_clientTimeToServerTime)
@@ -77,6 +108,11 @@ FrameNum World_C_HandleUpdate(ClientWorldStateUpdatePacket* msg)
 	for (int i = 0; i < numObjects; i++)
 	{
 		const CommandFrameObject* object = msg->GetFrameObject();
+		Object* obj = ObjectManager_C_LookupObject(object->guid);
+		if (!obj)
+		{
+			HandleNewObject(object->guid, object->pos[0], object->pos[1], object->pos[2]);
+		}
 		newFrame.objects.push_back(*object);
 	}
 	s_serverFrames.push_back(newFrame);
@@ -154,10 +190,10 @@ void World_C_Update(float dt)
 		}
 	}
 
-	float lerp = (float)(lerp(serverTime, before->timeMs, after->timeMs, 0.0f, 1.0f));
+	float lerp = (float)(lerp(serverTime, before->timeMs, after->timeMs, 0.0l, 1.0l));
 	for (unsigned int i = 0; i < before->objects.size(); i++)
 	{
-		const Object* obj = LookupObject(before->objects[i].guid);
+		const Object* obj = ObjectManager_C_LookupObject(before->objects[i].guid);
 		if (!obj)
 			continue; // todo: this seems bad... we probably should have already created this object
 		dBodyID bodyID = obj->GetBodyID();
@@ -189,32 +225,6 @@ void World_C_Update(float dt)
 			dBodyDisable(bodyID);
 		}
 	}
-	//if (before->player.isValid && after->player.isValid)
-	//{
-	//	const Object& player = World::Get()->GetPlayer();
-	//	if (!player.m_bodyID)
-	//	{
-	//		World::Get()->CreatePlayer();
-	//	}
-	//	dVector3 pos = {
-	//		(before->player.pos[0] * (1.0f - lerp)) + (after->player.pos[0] * lerp),
-	//		(before->player.pos[1] * (1.0f - lerp)) + (after->player.pos[1] * lerp),
-	//		(before->player.pos[2] * (1.0f - lerp)) + (after->player.pos[2] * lerp),
-	//		};
-	//	dQuaternion rot = {
-	//		(before->player.rot[0] * (1.0f - lerp)) + (after->player.rot[0] * lerp),
-	//		(before->player.rot[1] * (1.0f - lerp)) + (after->player.rot[1] * lerp),
-	//		(before->player.rot[2] * (1.0f - lerp)) + (after->player.rot[2] * lerp),
-	//		(before->player.rot[3] * (1.0f - lerp)) + (after->player.rot[3] * lerp),
-	//	};
-	//	if (player.m_geomID)
-	//	{
-	//		//dCopyVector3(player.serverPos, pos);
-	//		//dCopyVector4(player.serverRot, rot);
-	//		dGeomSetPosition(player.m_geomID, pos[0], pos[1], pos[2]);
-	//		dGeomSetQuaternion(player.m_geomID, rot);
-	//	}
-	//}
 
 	// erase old server frames?
 	const double MAX_SERVER_FRAME_LIFETIME = 2000.f; // 2 seconds seems like enough

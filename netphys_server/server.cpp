@@ -38,7 +38,7 @@ int main(int argc, char* argv)
     while (s_running)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        float dt = (start - s_now).count() / (1000.l * 1000.l * 1000.l);// nanoseconds to seconds
+        float dt = float((start - s_now).count() / (1000.l * 1000.l * 1000.l));// nanoseconds to seconds
         s_now = start;
 
         const double now = (s_now - s_startTime).count() / (1000.f * 1000.f);

@@ -8,6 +8,7 @@
 
 #include "world_s.h"
 #include "player_s.h"
+#include "objectmanager_s.h"
 
 #include <iostream>
 #include <vector>
@@ -36,7 +37,7 @@ static void PushToReceiveBuffer(char* data, int length, const sockaddr_in& from)
     }
 
     // if we get here we couldn't find a matching connection... so create one
-    Player_S* newPlayer = new Player_S;
+    Player_S* newPlayer = ObjectManager_S_CreatePlayer();
     Connection* newConn = new Connection(newPlayer, from);
     newConn->AddRecvBytes(data, length);
     newPlayer->SetConnection(newConn);

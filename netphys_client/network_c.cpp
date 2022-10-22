@@ -13,7 +13,7 @@
 static constexpr int SERVER_PORT = 5555;
 static const char* SERVER_ADDR = "127.0.0.1";
 
-static constexpr int BUFFER_SIZE = (64) * (1024);
+static constexpr int BUFFER_SIZE = (10) * (1024) * (1024); // 10mb should be enough
 static char s_sendBuffer[BUFFER_SIZE];
 static char s_recvBuffer[BUFFER_SIZE];
 static int s_sendBufferSize = 0;
@@ -177,6 +177,11 @@ static bool Recieve()
                 // i think we can ignore this?  UDP is connectionless?
                 return true;
             }
+            if (error == WSAEMSGSIZE)
+            {
+                LOG_WARNING("Got backup on the message queue");
+                return true;
+            }
             // error with accept
             LOG_ERROR("ERROR: Got error on recvfrom: (%d)", WSAGetLastError());
             return false;
@@ -306,6 +311,11 @@ bool Net_C_Update()
             }
         }
     }
+
+    // TODO: would probably make more sense to loop calling recvfrom() until our buffer is full,
+    //       then call process, then keep looping that until recvfrom() returns nothing back
+    //       ... but then we'd have to deal with partial packets... for now just a huge
+    //       buffer is fine
 
     // process any data that we recieved
     if (!Process())

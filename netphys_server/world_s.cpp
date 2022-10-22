@@ -6,6 +6,7 @@
 #include "../netphys_common/log.h"
 
 #include "network_s.h"
+#include "objectmanager_s.h"
 #include <vector>
 
 struct CommandFrame
@@ -28,7 +29,7 @@ void World_S_Update(double now)
     CommandFrame newFrame;
     newFrame.id = s_frameCounter++; // hope this never overflows... at 10ms frames it'll take >400 days don't expect servers to be up that long
     newFrame.timeMs = now;
-    for (Object* obj = GetFirstObject(); obj != nullptr; obj = GetNextObject(obj))
+    for (Object* obj = ObjectManager_S_GetFirst(); obj != nullptr; obj = ObjectManager_S_GetNext(obj))
     {
         dBodyID bodyID = obj->GetBodyID();
         if (bodyID)
@@ -36,8 +37,7 @@ void World_S_Update(double now)
             const dReal* pos = dBodyGetPosition(bodyID);
             const dReal* rot = dBodyGetQuaternion(bodyID);
 
-            CommandFrameObject frameObj;
-            frameObj.guid = obj->GetGUID();
+            CommandFrameObject frameObj(obj->GetGUID());
             frameObj.pos[0] = (float)pos[0];
             frameObj.pos[1] = (float)pos[1];
             frameObj.pos[2] = (float)pos[2];

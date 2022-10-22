@@ -7,10 +7,9 @@
 class Object
 {
 public:
-	Object();
-	~Object();
+	Object(const NPGUID& guid) : m_guid(guid) {}
 	const NPGUID& GetGUID() const { return m_guid; }
-private:
+	//void* operator new(size_t size) = delete; // TODO: get rid of the regular new, but placement new is ok... possible?
 	const NPGUID m_guid;
 // child functions
 public:
@@ -20,7 +19,3 @@ public:
 	Object* m_prev;
 	Object* m_next;
 };
-
-Object* GetFirstObject();
-Object* GetNextObject(Object* obj);
-Object* LookupObject(const NPGUID& guid);

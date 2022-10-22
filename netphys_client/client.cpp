@@ -31,6 +31,7 @@
 #include "client.h"
 #include "world_c.h"
 #include "player_c.h"
+#include "objectmanager_c.h"
 
 static const float INERT_COLOR[3] = { (float)((0xFF) / 255), (float)((0x8F) / 255), (float)((0x8A) / 255) };
 static const float ACTIVE_COLOR[3] = { (float)((0x57) / 255), (float)((0xFF) / 255), (float)((0x70) / 255) };
@@ -38,7 +39,6 @@ static const float PLAYER_COLOR[3] = { (float)((0xAB) / 255), (float)((0x43) / 2
 
 unsigned int s_inputMask = 0;
 static bool s_standaloneMode = false;
-static Player_C s_player;
 
 //-------------------------------------------------------------------------------------------------
 // Called before the sim loop starts
@@ -63,32 +63,39 @@ void Draw()
 {
     dsSetTexture(DS_NONE);
 
-    const std::vector<WorldObject*>& worldObjects = World::Get()->GetWorldObjects();
-    for (const WorldObject* wo : worldObjects)
+    for (Object* obj = ObjectManager_C_GetFirst(); obj != nullptr; obj = ObjectManager_C_GetNext(obj))
     {
-        dGeomID g = wo->m_geomID;
-        dVector3 sides;
-        const dReal* pos = dGeomGetPosition(g);
-        const dReal* R = dGeomGetRotation(g);
-        dGeomBoxGetLengths(g, sides);
-
-        if (dBodyIsEnabled(wo->m_bodyID))
+        dBodyID b = obj->GetBodyID();
+        if(!b)
+            continue;
+        dGeomID g = dBodyGetFirstGeom(b);
+        if(!g)
+            continue;
+        // todo: this is crappy... don't we have data on the bodies that got created what their shapes are?
+        if (obj->GetGUID().GetType() == ObjectType_WorldObject)
         {
-            dsSetColor(ACTIVE_COLOR[0], ACTIVE_COLOR[1], ACTIVE_COLOR[2]);
+            dVector3 sides;
+            const dReal* pos = dGeomGetPosition(g);
+            const dReal* R = dGeomGetRotation(g);
+            dGeomBoxGetLengths(g, sides);
+            
+            if (dBodyIsEnabled(b))
+            {
+                dsSetColor(ACTIVE_COLOR[0], ACTIVE_COLOR[1], ACTIVE_COLOR[2]);
+            }
+            else
+            {
+                dsSetColor(INERT_COLOR[0], INERT_COLOR[1], INERT_COLOR[2]);
+            }
+            dsDrawBoxD(pos, R, sides);
         }
-        else
+        else if (obj->GetGUID().GetType() == ObjectType_Player)
         {
-            dsSetColor(INERT_COLOR[0], INERT_COLOR[1], INERT_COLOR[2]);
+            const dReal* pos = dGeomGetPosition(g);
+            const dReal* R = dGeomGetRotation(g);
+            dsSetColor(PLAYER_COLOR[0], PLAYER_COLOR[1], PLAYER_COLOR[2]);
+            dsDrawSphereD(pos, R, (float)dGeomSphereGetRadius(g));
         }
-        dsDrawBoxD(pos, R, sides);
-    }
-
-    if (s_player.m_geomID)
-    {
-        const dReal* pos = dGeomGetPosition(s_player.m_geomID);
-        const dReal* R = dGeomGetRotation(s_player.m_geomID);
-        dsSetColor(PLAYER_COLOR[0], PLAYER_COLOR[1], PLAYER_COLOR[2]);
-        dsDrawSphereD(pos, R, (float)dGeomSphereGetRadius(s_player.m_geomID));
     }
 }
 //-------------------------------------------------------------------------------------------------
@@ -111,7 +118,7 @@ void Update(int pause)
 
         if (!pause)
         {
-            s_player.HandleInputs(s_inputMask);
+            ActivePlayer_C::HandleInputs(s_inputMask);
             s_inputMask = 0;
             World::Get()->Update(dt);
         }
@@ -167,6 +174,7 @@ int main(int argc, char** argv)
     if (s_standaloneMode)
     {
         World::Get()->Create();
+        World::Get()->Start();
     }
     else
     {
@@ -174,8 +182,6 @@ int main(int argc, char** argv)
     }
     
     World_C_Init();
-
-    World::Get()->Start();
 
     char exeFileName[MAX_PATH] = { 0 };
     GetModuleFileNameA(NULL, exeFileName, MAX_PATH);

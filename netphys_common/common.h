@@ -5,21 +5,44 @@
 #endif
 
 #include "../netphys_common/lib.h"
+#include "intrin.h"
 
 #define arrsize(x) sizeof(x) / sizeof(*x)
 #define lerp(x, x0, x1, y0, y1)  ((fabsf(x0-x1)<0.000001) ? (x0) : (y0 + ((float)(y1 - y0) * ((x - x0) / (float)(x1 - x0)))))
 
+enum ObjectType
+{
+    ObjectType_Invalid     = 0,
+    ObjectType_Player      = (1 << 0),
+    ObjectType_WorldObject = (1 << 1),
+};
+static const char* s_objectNames[] =
+{
+    "Player",
+    "WorldObject"
+};
+static constexpr unsigned int ObjectTypeMask = 0xFF000000;
 
 struct NPGUID
 {
-    unsigned long long v;
+public:
+    NPGUID(unsigned int uniqueID, ObjectType objectType)
+    {
+        assert((uniqueID & ObjectTypeMask) == 0); // we're using the upper bits
+        v = (uniqueID) | (objectType << 24);
+    }
+    unsigned int GetUniqueID() const { return v & ~ObjectTypeMask; }
+    ObjectType GetType() const { return (ObjectType)(v >> 24); }
     bool operator==(const NPGUID& rhs) const { return v == rhs.v; }
-};
-static unsigned long long s_guid = 1;
-static NPGUID GetNewGUID() { return NPGUID({s_guid++}); }
+private:
+    unsigned int v;
 
-#define F_GUID "%llu"
-#define VA_GUID(x) x.v
+};
+static unsigned int s_guid = 1;
+static NPGUID GetNewGUID(ObjectType type) { return NPGUID(s_guid++, type); }
+
+#define F_GUID "%s-%d"
+#define VA_GUID(x) s_objectNames[_tzcnt_u32(x.GetType())],x.GetUniqueID() 
 
 enum PLAYER_INPUT
 {
@@ -97,7 +120,8 @@ static constexpr int CLIENT_NEW_CONNECTION_ID = 2342341;
 
 struct CommandFrameObject
 {
-    NPGUID guid;
+    CommandFrameObject(const NPGUID& _guid) : guid(_guid) {}
+    const NPGUID guid;
     float pos[3];
     float rot[4];
     bool isValid;

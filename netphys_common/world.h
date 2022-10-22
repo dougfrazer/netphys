@@ -3,15 +3,7 @@
 #include <ode/ode.h>
 #include <vector>
 
-#include "../netphys_common/object.h"
-
-
-struct WorldObject : public Object
-{
-	virtual dBodyID GetBodyID() const override { return m_bodyID; }
-	dBodyID m_bodyID = nullptr;
-	dGeomID m_geomID = nullptr;
-};
+#include "../netphys_common/worldobject.h"
 
 class World
 {
@@ -30,6 +22,7 @@ public:
 
 	dBodyID CreateBody();
 	dGeomID CreateSphere(float radius);
+	dGeomID CreateCube(float size);
 
 	const std::vector<WorldObject*>& GetWorldObjects() const;
 };

@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <vector>
+#include <immintrin.h>
+
+#define alignup(p, i)      ( ((uintptr_t)p + (uintptr_t)i - 1) & ~((uintptr_t)i - 1) )
+//https://graphics.stanford.edu/~seander/bithacks.html#ConditionalSetOrClearBitsWithoutBranching
+#define set_or_clear_mask(condition, bits, mask) (bits ^= (-(condition) ^ bits) & mask)
 
 struct DataStore
 {
@@ -70,11 +76,11 @@ private:
 };
 //******************************************************************************
 template <class T>
-class LIST
+class CyclicalList
 {
 public:
-    LIST();
-    virtual ~LIST();
+    CyclicalList();
+    virtual ~CyclicalList();
 
 public:
     bool Add(T* node);
@@ -90,14 +96,14 @@ private:
 //******************************************************************************
 // Constructor
 //******************************************************************************
-template < class T > LIST<T>::LIST() { m_head = nullptr; }
-template < class T > LIST<T>::~LIST() {}
+template < class T > CyclicalList<T>::CyclicalList() { m_head = nullptr; }
+template < class T > CyclicalList<T>::~CyclicalList() {}
 
 //******************************************************************************
 // Public interface
 //******************************************************************************
 template < class T >
-bool LIST<T>::Add(T* node)
+bool CyclicalList<T>::Add(T* node)
 {
     if (m_head == nullptr)
     {
@@ -116,7 +122,7 @@ bool LIST<T>::Add(T* node)
 }
 //******************************************************************************
 template < class T >
-bool LIST<T>::Remove(T* node)
+bool CyclicalList<T>::Remove(T* node)
 {
     if (node == nullptr)
     {
@@ -139,13 +145,124 @@ bool LIST<T>::Remove(T* node)
     return true;
 }
 //******************************************************************************
-template < class T > T* LIST<T>::GetFirst()
+template < class T > T* CyclicalList<T>::GetFirst()
 {
     return m_head;
 }
 //******************************************************************************
-template < class T > T* LIST<T>::GetNext(T* node)
+template < class T > T* CyclicalList<T>::GetNext(T* node)
 {
     return node->m_next == m_head ? nullptr : node->m_next;
 }
 //******************************************************************************
+
+
+
+
+
+
+
+//
+// block allocator.  supports Get and Free.  maximum 64 segments.
+//
+template<typename T>
+class BlockAllocator
+{
+public:
+    T* Get()
+    {
+        if (!m_freeSegmentMask)
+        {
+            GetNewSegment();
+        }
+        unsigned long index;
+        _BitScanReverse(&index, m_freeSegmentMask); // get the highest bit set
+        Segment& s = m_segments[index];
+        T* ret = (T*)(s.nextFree);
+        s.nextFree = s.nextFree->next;
+
+        set_or_clear_mask(s.nextFree != nullptr, m_freeSegmentMask, (1ull << index));
+
+        return ret;
+    }
+    void Free(T* ptr)
+    {
+        for (size_t i = 0; i < m_segments.size(); i++)
+        {
+            Segment& s = m_segments[i];
+            char* start = ((char*)(s.data));
+            char* end = ((char*)(s.data)) + (m_blocksPerSegment * m_blockSize);
+            if ((char*)ptr >= start && (char*)ptr < end)
+            {
+                ((Block*)ptr)->next = s.nextFree;
+                s.nextFree = ((Block*)(ptr));
+
+                m_freeSegmentMask |= (1ull << i);
+
+                return;
+            }
+        }
+        assert(false); // not good, we couldnt find this ptr to free
+    }
+    void Init(unsigned int blockSize, unsigned int numBlocksPerSegment)
+    {
+        m_blockSize = alignup(sizeof(T) * blockSize, sizeof(Block*)); // make sure each block can store a ptr
+        m_blocksPerSegment = numBlocksPerSegment;
+        m_segments.reserve(64);
+        GetNewSegment();
+    }
+    // general purpose allocator.. one object per block
+    BlockAllocator(unsigned int numBlocksPerSegment)
+    {
+        Init(1, numBlocksPerSegment);
+    }
+    // use this if you want multiple objects per block, like 4 floats
+    BlockAllocator(unsigned int blockSize, unsigned int numBlocksPerSegment)
+    {
+        Init(blockSize, numBlocksPerSegment);
+    }
+    ~BlockAllocator()
+    {
+        for (Segment& s : m_segments)
+        {
+            free(s.data);
+        }
+    }
+private:
+    struct Block
+    {
+        Block* next;
+    };
+    struct Segment
+    {
+        T* data;
+        Block* nextFree;
+        Segment(T* _data) : data(_data), nextFree((Block*)_data) {}
+    };
+
+    std::vector<Segment> m_segments;
+    int m_blockSize;
+    int m_blocksPerSegment;
+    int m_numSegments = 0;
+    unsigned long m_freeSegmentMask = 0;
+    void GetNewSegment()
+    {
+        char* segmentMemory = (char*)calloc(m_blockSize, m_blocksPerSegment);
+        m_segments.push_back(Segment((T*)segmentMemory));
+
+        Block* iter = (Block*)segmentMemory;
+        for (int i = 0; i < m_blocksPerSegment - 1; i++)
+        {
+            iter->next = (Block*)((char*)iter + m_blockSize);
+            iter = iter->next;
+        }
+        iter->next = nullptr;
+
+        assert(m_numSegments < 32); // increase block size, not intended to have this many segments
+        assert(!m_freeSegmentMask); // not supposed to have free segments if we're calling this
+
+        m_freeSegmentMask |= (1ull << m_numSegments);
+        m_numSegments++;
+    }
+
+};

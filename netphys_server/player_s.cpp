@@ -33,6 +33,8 @@ void Player_S::HandleInputs(int inputMask)
             dMass mass;
             dMassSetSphere(&mass, DENSITY, PLAYER_SIZE);
             dBodySetMass(m_bodyID, &mass);
+            m_geomID = World::Get()->CreateSphere(PLAYER_SIZE);
+            dGeomSetBody(m_geomID, m_bodyID);
         }
     }
     HandleInputsInternal(m_bodyID, inputMask);

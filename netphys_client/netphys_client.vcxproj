@@ -90,7 +90,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_MT;_DEBUG;dIDEDOUBLE;CCD_IDEDOUBLE;WIN32;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_NPCLIENT;_MT;_DEBUG;dIDEDOUBLE;CCD_IDEDOUBLE;WIN32;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>..\..\ode\include;..\..\ode\ode\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -151,8 +151,10 @@
     <ClCompile Include="..\netphys_common\object.cpp" />
     <ClCompile Include="..\netphys_common\player.cpp" />
     <ClCompile Include="..\netphys_common\world.cpp" />
+    <ClCompile Include="..\netphys_common\worldobject.cpp" />
     <ClCompile Include="client.cpp" />
     <ClCompile Include="network_c.cpp" />
+    <ClCompile Include="objectmanager_c.cpp" />
     <ClCompile Include="player_c.cpp" />
     <ClCompile Include="world_c.cpp" />
   </ItemGroup>
@@ -164,6 +166,7 @@
     <ClInclude Include="..\netphys_common\world.h" />
     <ClInclude Include="client.h" />
     <ClInclude Include="network_c.h" />
+    <ClInclude Include="objectmanager_c.h" />
     <ClInclude Include="player_c.h" />
     <ClInclude Include="world_c.h" />
   </ItemGroup>
@@ -174,6 +177,9 @@
     <ProjectReference Include="..\ode\build\vs2008\ode.vcxproj">
       <Project>{f264405f-8671-f74a-b182-bbbb7161691b}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\netphys.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

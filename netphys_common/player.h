@@ -9,5 +9,7 @@ static constexpr dReal PLAYER_SIZE = 2.f;
 class Player : public Object
 {
 public:
+	Player(const NPGUID& guid) : Object(guid) {}
+public:
 	void HandleInputsInternal(dBodyID bodyID, int inputMask);
 };
