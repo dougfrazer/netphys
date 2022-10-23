@@ -10,9 +10,9 @@ class Player_S : public Player
 public:
 	Player_S() : Player(GetNewGUID(ObjectType_Player)) {}
 public:
-	void SetConnection(const Connection* conn) { m_connection = conn; }
+	void SetConnection(Connection* conn) { m_connection = conn; }
 private:
-	const Connection* m_connection;
+	Connection* m_connection;
 
 public:
 	bool ProcessPacket(Packet* p);

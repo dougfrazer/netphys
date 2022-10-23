@@ -63,6 +63,69 @@ static void SendServerWorldUpdateAck(FrameNum frameNum)
     Net_C_Send(&msg);
 }
 //-------------------------------------------------------------------------------------------------
+struct BandwidthTrackerFrame
+{
+    unsigned int readBytes;
+    unsigned int writeBytes;
+    float dt;
+};
+static std::vector<BandwidthTrackerFrame> s_bandwithTracker;
+static int s_bandwidthTrackerIndex = 0;
+static void BandwidthTracker(unsigned int readBytes, unsigned int writeBytes, float dt)
+{
+    if (!s_bandwithTracker.size())
+    {
+        s_bandwithTracker.resize(1024); // at 10ms ping this is about 10 seconds... seems reasonable
+        s_bandwidthTrackerIndex = 0;
+    }
+    s_bandwithTracker[s_bandwidthTrackerIndex] = { readBytes, writeBytes, dt };
+    s_bandwidthTrackerIndex = (s_bandwidthTrackerIndex + 1) % 1024;
+}
+//-------------------------------------------------------------------------------------------------
+float Net_C_GetAverageReadBandwidth(float time)
+{
+    if (s_bandwithTracker.size() == 0)
+    {
+        return 0.0f;
+    }
+    int startIndex = (s_bandwidthTrackerIndex == 0) ? 1023 : s_bandwidthTrackerIndex - 1;
+    int endIndex = (startIndex == 1023) ? 0 : (s_bandwidthTrackerIndex);
+    unsigned int bytes = 0;
+    float iterTime = time;
+    for (int i = startIndex; i != endIndex && iterTime > 0.0f; i = (i == 0 ? 1023 : (i-1)))
+    {
+        if (s_bandwithTracker[i].dt == 0)
+        {
+            break; // use whatever data we have, but we don't have the full 'time' amount
+        }
+        bytes += s_bandwithTracker[i].readBytes;
+        iterTime -= s_bandwithTracker[i].dt / 1000.f;
+    }
+    return (float)bytes / (time - iterTime);
+}
+//-------------------------------------------------------------------------------------------------
+float Net_C_GetAverageWriteBandwidth(float time)
+{
+    if (s_bandwithTracker.size() == 0)
+    {
+        return 0.0f;
+    }
+    const int startIndex = (s_bandwidthTrackerIndex == 0) ? 1023 : s_bandwidthTrackerIndex - 1;
+    const int endIndex = (startIndex == 1023) ? 0 : (s_bandwidthTrackerIndex);
+    unsigned int bytes = 0;
+    float iterTime = time;
+    for (int i = startIndex; i != endIndex && iterTime > 0.0f; i = (i == 0 ? 1023 : (i - 1)))
+    {
+        if (s_bandwithTracker[i].dt == 0)
+        {
+            break; // use whatever data we have, but we don't have the full 'time' amount
+        }
+        bytes += s_bandwithTracker[i].writeBytes;
+        iterTime -= s_bandwithTracker[i].dt / 1000.f;
+    }
+    return (float)bytes / (time - iterTime);
+}
+//-------------------------------------------------------------------------------------------------
 bool Net_C_Init()
 {
     WSADATA wsd;
@@ -283,7 +346,7 @@ static bool Process()
     return true;
 }
 //-------------------------------------------------------------------------------------------------
-bool Net_C_Update()
+bool Net_C_Update(float dt)
 {
     if (s_serverSocket == INVALID_SOCKET)
     {
@@ -316,6 +379,8 @@ bool Net_C_Update()
     //       then call process, then keep looping that until recvfrom() returns nothing back
     //       ... but then we'd have to deal with partial packets... for now just a huge
     //       buffer is fine
+
+    BandwidthTracker(s_recvBufferSize, s_sendBufferSize, dt);
 
     // process any data that we recieved
     if (!Process())

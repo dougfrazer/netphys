@@ -55,6 +55,11 @@ void Start()
     ResetCamera();
 }
 
+static void GetBandwidth(float* read, float* write)
+{
+    *read = Net_C_GetAverageReadBandwidth(2.0f);
+    *write = Net_C_GetAverageWriteBandwidth(2.0f);
+}
 
 //-------------------------------------------------------------------------------------------------
 // Render our objects
@@ -97,7 +102,32 @@ void Draw()
             dsDrawSphereD(pos, R, (float)dGeomSphereGetRadius(g));
         }
     }
+
 }
+//-------------------------------------------------------------------------------------------------
+static NPGUID s_standalonePlayerGUID(GetNewGUID(ObjectType_Player));
+void HandleInputs_Standalone(int inputMask)
+{
+    assert(s_standaloneMode);
+    if (inputMask & INPUT_SPACE)
+    {
+        Player_C* player = dynamic_cast<Player_C*>(ObjectManager_C_LookupObject(s_standalonePlayerGUID));
+        if (!player)
+        {
+            Player_C* player = dynamic_cast<Player_C*>(ObjectManager_C_CreateObject(s_standalonePlayerGUID));
+            if (player)
+            {
+                player->Init(0, 0, 5.f);
+            }
+        }
+        else
+        {
+            Player::HandleInputsInternal(player->GetBodyID(), inputMask);
+        }
+   
+    }
+}
+ 
 //-------------------------------------------------------------------------------------------------
 // Called before every frame
 //-------------------------------------------------------------------------------------------------
@@ -118,7 +148,7 @@ void Update(int pause)
 
         if (!pause)
         {
-            ActivePlayer_C::HandleInputs(s_inputMask);
+            HandleInputs_Standalone(s_inputMask);
             s_inputMask = 0;
             World::Get()->Update(dt);
         }
@@ -134,7 +164,7 @@ void Update(int pause)
             s_inputMask = 0;
         }
 
-        Net_C_Update();
+        Net_C_Update(dt);
         World_C_Update(dt);
     }
 
@@ -197,6 +227,7 @@ int main(int argc, char** argv)
     fn.command = &HandleInput;
     fn.stop = 0;
     fn.path_to_textures = texturePath.c_str();
+    fn.get_bandwidth = &GetBandwidth;
     dsSimulationLoop(argc, argv, 640, 480, &fn);
 
     if (!s_standaloneMode)

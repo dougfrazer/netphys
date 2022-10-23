@@ -91,6 +91,8 @@ typedef struct dsFunctions {
   void (*stop)();		/* called after sim loop exits */
   /* version 2 data */
   const char *path_to_textures;	/* if nonzero, path to texture files */
+  /* version 3?  netphys stuff */
+  void (*get_bandwidth)(float* read, float* write);
 } dsFunctions;
 
 
@@ -170,6 +172,7 @@ DS_API void dsStop();
  */
 DS_API double dsElapsedTime();
 
+
 /**
  * @brief Toggle the rendering of textures.
  * @ingroup drawstuff
@@ -198,6 +201,7 @@ DS_API void dsSetColor (float red, float green, float blue);
  * 1.0 means fully opaque, and 0.0 means fully transparent.
  */
 DS_API void dsSetColorAlpha (float red, float green, float blue, float alpha);
+
 
 /**
  * @brief Draw a box.

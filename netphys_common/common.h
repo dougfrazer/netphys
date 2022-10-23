@@ -55,8 +55,7 @@ enum PLAYER_INPUT
     INPUT_MOVE_RIGHT       = (1 << 5),
 };
 
-static constexpr int NUM_ROWS_COLS = 3;
-static constexpr int NUM_INTERACTS = NUM_ROWS_COLS * NUM_ROWS_COLS;
+static constexpr int NUM_ROWS_COLS = 10;
 
 // world constants
 static constexpr float GRAVITY = 9.8f; // m/s^2
@@ -124,7 +123,6 @@ struct CommandFrameObject
     const NPGUID guid;
     float pos[3];
     float rot[4];
-    bool isValid;
     bool isEnabled;
 };
 typedef unsigned int FrameNum;

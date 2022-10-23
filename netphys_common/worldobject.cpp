@@ -7,7 +7,7 @@
 void WorldObject::Init(float x, float y, float z)
 {
 	dBodyID bodyID = World::Get()->CreateBody();
-	dGeomID geomID = World::Get()->CreateCube(BOX_SIZE);
+	dGeomID geomID = World::Get()->CreateBox(BOX_SIZE, BOX_SIZE, BOX_SIZE);
 	m_bodyID = bodyID;
 	dBodySetPosition(m_bodyID, x, y, z);
 

@@ -181,9 +181,9 @@ dGeomID World::CreateSphere(float radius)
     return dCreateSphere(s_spaceID, radius);
 }
 //-------------------------------------------------------------------------------------------------
-dGeomID World::CreateCube(float size)
+dGeomID World::CreateBox(float width, float height, float depth)
 {
-    return dCreateBox(s_spaceID, size,size,size);
+    return dCreateBox(s_spaceID, width, height, depth);
 }
 //-------------------------------------------------------------------------------------------------
 const std::vector<WorldObject*>& World::GetWorldObjects() const

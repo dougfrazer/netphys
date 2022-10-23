@@ -4,6 +4,7 @@
 
 #include <ode/ode.h>
 
+#include "../netphys_common/world.h"
 
 void Player::HandleInputsInternal(dBodyID bodyID, int inputMask)
 {

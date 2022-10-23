@@ -35,6 +35,8 @@ struct Connection
     bool MatchesAddress(const struct sockaddr_in& addr) const;
     void AddRecvBytes(char* data, int length);
 
+    void Send(struct Packet* p);
+
 private:
     class Player_S* m_owner;
 
@@ -49,9 +51,7 @@ private:
     DWORD m_stateTime = 0;
     CONNECTION_STATE m_state = CONNECTION_STATE_NONE;
     void SendNewConnection();
-    void Send(struct Packet* p);
     bool ProcessPacket(struct Packet* p);
-
     FrameNum m_lastAckedFrame = 0;
 };
 

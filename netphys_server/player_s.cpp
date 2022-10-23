@@ -23,6 +23,13 @@ bool Player_S::ProcessPacket(Packet* p)
 //-------------------------------------------------------------------------------------------------
 void Player_S::HandleInputs(int inputMask)
 {
+    if (inputMask & INPUT_RESET_WORLD)
+    {
+        World::Get()->Reset();
+        ClientHandleWorldStateResetPacket p;
+        p.Finalize();
+        m_connection->Send(&p);
+    }
     if (!m_bodyID)
     {
         if (inputMask & INPUT_SPACE)
@@ -37,5 +44,5 @@ void Player_S::HandleInputs(int inputMask)
             dGeomSetBody(m_geomID, m_bodyID);
         }
     }
-    HandleInputsInternal(m_bodyID, inputMask);
+    Player::HandleInputsInternal(m_bodyID, inputMask);
 }

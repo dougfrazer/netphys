@@ -816,6 +816,19 @@ static void drawCylinder (float l, float r, float zoffset)
   glEnd();
 }
 
+//void dsDrawText(const char* str, int strLen, float x, float y)
+//{
+//    // move bottom left, southwest of the red triangle  
+//    glRasterPos2f(x, y);
+//
+//    // set up for a string-drawing display list call  
+//    // the display list numbering starts at 1000, an arbitrary choice  
+//    glListBase(1000);
+//
+//    // draw a string using font display lists  
+//    glCallLists(strLen, GL_UNSIGNED_BYTE, str);
+//}
+
 //***************************************************************************
 // motion model
 
@@ -892,7 +905,7 @@ static Texture *texture[4+1]; // +1 since index 0 is not used
 
 #if !defined(macintosh) || defined(ODE_PLATFORM_OSX)
 
-void dsStartGraphics (int /*width*/, int /*height*/, dsFunctions *fn)
+void dsStartGraphics (int /*width*/, int /*height*/, dsFunctions *fn, HDC renderer_dc)
 {
 
   const char *prefix = DEFAULT_PATH_TO_TEXTURES;
@@ -914,6 +927,11 @@ void dsStartGraphics (int /*width*/, int /*height*/, dsFunctions *fn)
   strcpy (s,prefix);
   strcat (s,"/checkered.ppm");
   texture[DS_CHECKERED] = checkered_texture = new Texture (s);
+
+  // create bitmaps for the device context font's first 256 glyphs  
+  // the display list numbering starts at 1000, an arbitrary choice  
+//  wglUseFontBitmaps(renderer_dc, 0, 256, 1000);
+
 }
 
 #else // macintosh
@@ -949,6 +967,8 @@ void dsStopGraphics()
   sky_texture = 0;
   ground_texture = 0;
   wood_texture = 0;
+  // delete our 256 glyph display lists  
+  glDeleteLists(1000, 256);
 }
 
 
@@ -1083,6 +1103,46 @@ static void drawPyramidGrid()
   }
 }
 
+//static void DrawDebugText(dsFunctions* fn)
+//{
+//    if (fn->get_bandwidth)
+//    {
+//        float readBandwith, writeBandwidth;
+//        fn->get_bandwidth(&readBandwith, &writeBandwidth);
+//        char readBuf[128];
+//        if (readBandwith > 1000)
+//        {
+//            snprintf(readBuf, 128, "Read: %.0f kb/s", readBandwith / 1000.f);
+//        }
+//        else
+//        {
+//            snprintf(readBuf, 128, "Read: %.0f b/sec", readBandwith);
+//        }
+//        char writeBuf[128];
+//        if (writeBandwidth > 1000)
+//        {
+//            snprintf(writeBuf, 128, "Write: %.0f kb/s", writeBandwidth / 1000.f);
+//        }
+//        else
+//        {
+//            snprintf(writeBuf, 128, "Write: %.0f b/sec", writeBandwidth);
+//        }
+//
+//        GLYPHMETRICSFLOAT agmf[256];
+//        wglUseFontOutlines(wglGetCurrentDC(), 0, 255, 1000, 0.0f, 0.1f, WGL_FONT_POLYGONS, agmf);
+//        // Set up transformation to draw the string 
+//        glLoadIdentity();
+//        glTranslatef(0.0f, 0.0f, 0.0f);
+//        glScalef(200.0f, 200.0f, 200.0f);
+//        // Display a string 
+//        glListBase(1000); // Indicates the start of display lists for the glyphs 
+//        int readStrLen = strlen(readBuf);
+//        int writeStrLen = strlen(writeBuf);
+//        glCallLists(readStrLen, GL_UNSIGNED_BYTE, readBuf);
+//        glCallLists(writeStrLen, GL_UNSIGNED_BYTE, writeBuf);
+//    }
+//
+//}
 
 void dsDrawFrame (int width, int height, dsFunctions *fn, int pause)
 {
@@ -1164,6 +1224,9 @@ void dsDrawFrame (int width, int height, dsFunctions *fn, int pause)
   glDepthFunc (GL_LESS);
   glColor3f (1,1,1);
   setColor (1,1,1,1);
+
+  // draw any debug text
+  //DrawDebugText(fn);
 
   // draw the rest of the objects. set drawing state first.
   color[0] = 1;

@@ -36,7 +36,7 @@ void dsPlatformSimLoop (int window_width, int window_height,
 
 // used by platform specific code
 
-void dsStartGraphics (int width, int height, dsFunctions *fn);
+void dsStartGraphics (int width, int height, dsFunctions *fn, HDC renderer_dc);
 void dsDrawFrame (int width, int height, dsFunctions *fn, int pause);
 void dsStopGraphics();
 void dsMotion (int mode, int deltax, int deltay);

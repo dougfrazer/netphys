@@ -11,5 +11,5 @@ class Player : public Object
 public:
 	Player(const NPGUID& guid) : Object(guid) {}
 public:
-	void HandleInputsInternal(dBodyID bodyID, int inputMask);
+	static void HandleInputsInternal(dBodyID bodyID, int inputMask);
 };

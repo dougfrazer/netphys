@@ -127,7 +127,6 @@ static volatile int keybuffer[16];	  // fifo ring buffer for keypresses
 static volatile int keybuffer_head = 0;	  // index of next key to put in (modified by GUI)
 static volatile int keybuffer_tail = 0;	  // index of next key to take out (modified by renderer)
 
-
 static void setupRendererGlobals()
 {
   renderer_run = 1;
@@ -141,7 +140,60 @@ static void setupRendererGlobals()
   keybuffer_head = 0;
   keybuffer_tail = 0;
 }
+static volatile HDC text_dc = 0;
+static volatile HBITMAP text_bmp= 0;
+constexpr int TEXT_HEIGHT = 16;
+constexpr int TEXT_WIDTH = 180;
 
+static void DrawDebugText()
+{
+    // NETPHYS
+    float readBandwith, writeBandwidth;
+    renderer_fn->get_bandwidth(&readBandwith, &writeBandwidth);
+    char readBuf[128];
+    if (readBandwith > 1000)
+    {
+        snprintf(readBuf, 128, "Read: %.0f kb/s", readBandwith / 1000.f);
+    }
+    else
+    {
+        snprintf(readBuf, 128, "Read: %.0f b/sec", readBandwith);
+    }
+    char writeBuf[128];
+    if (writeBandwidth > 1000)
+    {
+        snprintf(writeBuf, 128, "Write: %.0f kb/s", writeBandwidth / 1000.f);
+    }
+    else
+    {
+        snprintf(writeBuf, 128, "Write: %.0f b/sec", writeBandwidth);
+    }
+
+
+    HANDLE hOld = SelectObject(text_dc, text_bmp);
+    HBRUSH  hbrBkGnd = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
+    RECT r;
+    r.right = TEXT_WIDTH;
+    r.bottom = 2* TEXT_HEIGHT;
+    FillRect(text_dc, &r, hbrBkGnd);
+    DeleteObject(hbrBkGnd);
+    SetBkMode(text_dc, TRANSPARENT);
+    SetTextColor(text_dc, GetSysColor(COLOR_WINDOWTEXT));
+
+    RECT rect { 0, 0, TEXT_WIDTH, TEXT_HEIGHT };
+    DrawTextA(text_dc, readBuf, strlen(readBuf), &rect, DT_CENTER);
+    rect = { 0, TEXT_HEIGHT, TEXT_WIDTH, 2*TEXT_HEIGHT };
+    DrawTextA(text_dc, writeBuf, strlen(writeBuf), &rect, DT_CENTER);
+
+    BitBlt(renderer_dc,
+           0, 0,
+           TEXT_WIDTH, 2*TEXT_HEIGHT,
+           text_dc,
+           0, 0,
+           SRCCOPY);
+    SelectObject(text_dc, hOld);
+    // END NETPHYS
+}
 
 static unsigned CALLBACK renderingThread (LPVOID lpParam)
 {
@@ -157,7 +209,7 @@ static unsigned CALLBACK renderingThread (LPVOID lpParam)
   if (maxtsize < 128) dsWarning ("max texture size too small (%dx%d)",
 				 maxtsize,maxtsize);
 
-  dsStartGraphics (renderer_width,renderer_height,renderer_fn);
+  dsStartGraphics (renderer_width,renderer_height,renderer_fn, renderer_dc);
   if (renderer_fn->start) renderer_fn->start();
 
   while (renderer_run) {
@@ -166,6 +218,8 @@ static unsigned CALLBACK renderingThread (LPVOID lpParam)
     dsDrawFrame (renderer_width,renderer_height,renderer_fn,
 		 renderer_pause && !ss);
     if (ss) renderer_ss = 0;
+
+   DrawDebugText();
 
     // read keys out of ring buffer and feed them to the command function
     while (keybuffer_head != keybuffer_tail) {
@@ -438,6 +492,9 @@ void dsPlatformSimLoop (int window_width, int window_height,
   renderer_height = window_height;
   renderer_fn = fn;
 
+  text_dc = CreateCompatibleDC(dc);
+  text_bmp = CreateCompatibleBitmap(dc, TEXT_WIDTH, TEXT_HEIGHT * 2);
+
   unsigned threadId;
   HANDLE hThread;
 
@@ -498,7 +555,6 @@ extern "C" double dsElapsedTime()
   if (retval<dEpsilon) retval=dEpsilon;
   return retval;
 }
-
 
 // JPerkins: if running as a DLL, grab my module handle at load time so
 // I can find the accelerators table later

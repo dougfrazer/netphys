@@ -22,7 +22,7 @@ public:
 
 	dBodyID CreateBody();
 	dGeomID CreateSphere(float radius);
-	dGeomID CreateCube(float size);
+	dGeomID CreateBox(float width, float height, float depth);
 
 	const std::vector<WorldObject*>& GetWorldObjects() const;
 };
