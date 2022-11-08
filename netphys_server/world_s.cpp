@@ -13,7 +13,7 @@ struct CommandFrame
 {
     FrameNum id;
     double timeMs;
-    std::vector<ObjectUpdate> objects;
+    std::vector<CommandFrameObject> objects;
 };
 
 std::vector<CommandFrame> s_commandFrames;
@@ -37,7 +37,7 @@ void World_S_Update(double now)
             const dReal* pos = dBodyGetPosition(bodyID);
             const dReal* rot = dBodyGetQuaternion(bodyID);
 
-            ObjectUpdate frameObj(obj->GetGUID());
+            CommandFrameObject frameObj(obj->GetGUID());
             frameObj.pos[0] = (float)pos[0];
             frameObj.pos[1] = (float)pos[1];
             frameObj.pos[2] = (float)pos[2];

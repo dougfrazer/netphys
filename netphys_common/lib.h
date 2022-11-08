@@ -163,7 +163,7 @@ template < class T > T* CyclicalList<T>::GetNext(T* node)
 
 
 //
-// block allocator.  supports Get and Free.  maximum 64 segments.
+// block allocator.  supports Get and Free.  maximum 32 segments.
 //
 template<typename T>
 class BlockAllocator
@@ -197,7 +197,7 @@ public:
                 ((Block*)ptr)->next = s.nextFree;
                 s.nextFree = ((Block*)(ptr));
 
-                m_freeSegmentMask |= (1ull << i);
+                m_freeSegmentMask |= (1 << i);
 
                 return;
             }
@@ -208,7 +208,7 @@ public:
     {
         m_blockSize = alignup(sizeof(T) * blockSize, sizeof(Block*)); // make sure each block can store a ptr
         m_blocksPerSegment = numBlocksPerSegment;
-        m_segments.reserve(64);
+        m_segments.reserve(32);
         GetNewSegment();
     }
     // general purpose allocator.. one object per block
@@ -244,7 +244,7 @@ private:
     int m_blockSize;
     int m_blocksPerSegment;
     int m_numSegments = 0;
-    unsigned long m_freeSegmentMask = 0;
+    unsigned int m_freeSegmentMask = 0; // todo: bump to 64 for 64bit?  only restriction is _BitScanReverse intrisic
     void GetNewSegment()
     {
         char* segmentMemory = (char*)calloc(m_blockSize, m_blocksPerSegment);
@@ -261,7 +261,7 @@ private:
         assert(m_numSegments < 32); // increase block size, not intended to have this many segments
         assert(!m_freeSegmentMask); // not supposed to have free segments if we're calling this
 
-        m_freeSegmentMask |= (1ull << m_numSegments);
+        m_freeSegmentMask |= (1 << m_numSegments);
         m_numSegments++;
     }
 
