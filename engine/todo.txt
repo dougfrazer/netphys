@@ -1,0 +1,9 @@
+
+
+TODO NOTES
+
+- change the Physics to take 'physics geometry' rather than the actual vert list
+	- support multiple physics geometries?
+- make physics create an AABB around the geometry and use that first for broad-phase testing
+- broad-phase should do swept AABB from previous state to avoid tunnelling
+- conservative advancement of delta-times 
