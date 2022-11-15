@@ -13,9 +13,7 @@ struct vertex
     vector3 pos;
     vector3 normal;
     bool operator==(const vertex& b) const { 
-        return FloatEquals(pos.x, b.pos.x) && 
-               FloatEquals(pos.y, b.pos.y) && 
-               FloatEquals(pos.z, b.pos.z); 
+        return pos == b.pos && normal == b.normal;
     }
 };
 
