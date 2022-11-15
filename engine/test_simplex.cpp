@@ -1,25 +1,27 @@
 #include "test.h"
 
-#include <chrono>
-#include <thread>
 #include "platform.h"
 #include "physics.h"
 #include "lib.h"
 #include "simplex.h"
+#include "geometry.h"
 #include <vector>
 
 #include "windows.h"
 #include <gl/GL.h>
 #include <gl/GLU.h>
 
-struct TestObj
+static struct
 {
-	Geometry* m_geo = nullptr;
+	SphereGeometry* m_geo = nullptr;
 	Physics* m_phys = nullptr;
-};
+} s_circle;
 
-static TestObj s_circle;
-static TestObj s_board;
+static struct
+{
+	BoxGeometry* m_geo = nullptr;
+	Physics* m_phys = nullptr;
+} s_board;
 
 
 static float s_fixedTimestep = 1.f / 30.f;
@@ -32,13 +34,12 @@ static std::vector<vector3> s_witnessPoints;
 
 static void ResetSimplex()
 {
-	vector3 a_local = vector3(s_circle.m_geo->m_vertexList[0]);
-	vector3 b_local = vector3(s_board.m_geo->m_vertexList[0]);
+	s_simplexArray.clear();
+	vector3 a_local = s_circle.m_geo->GetRandomPointOnEdge();
+	vector3 b_local = s_board.m_geo->GetRandomPointOnEdge();
 	Simplex simplex;
 	simplex.verts[0].A = a_local + s_circle.m_phys->GetPosition();
 	simplex.verts[0].B = b_local + s_board.m_phys->GetPosition();
-	simplex.verts[0].indexA = 0;
-	simplex.verts[0].indexB = 0;
 	simplex.verts[0].p = simplex.verts[0].A - simplex.verts[0].B;
 	simplex.count = 1;
 	s_simplexArray.push_back(simplex);
@@ -58,18 +59,31 @@ static void ProcessInput(float dt)
 		{
 			Simplex next = s_simplexArray.back();
 			COLLISION_STEP s = DetectCollisionStep(s_collisionParams, next, vector3());
-			if (s == COLLISION_STEP_SUCCESS)
+			switch (s)
 			{
-				vector3 a,b;
-				GetWitnessPoints(next, a, b);
-				s_witnessPoints.push_back(a);
-				s_witnessPoints.push_back(b);
+				case COLLISION_STEP_SUCCESS:
+				{
+					vector3 a, b;
+					GetWitnessPoints(next, a, b);
+					s_witnessPoints.push_back(a);
+					s_witnessPoints.push_back(b);
+					s_simplexArray.push_back(next);
+				}
+				break;
+
+				case COLLISION_STEP_FAILURE:
+				{
+					s_witnessPoints.clear();
+				}
+				break;
+
+				case COLLISION_STEP_CONTINUE:
+				{
+					s_witnessPoints.clear();
+					s_simplexArray.push_back(next);
+				}
+				break;
 			}
-			else
-			{
-				s_witnessPoints.clear();
-			}
-			s_simplexArray.push_back(next);
 		}	
 	}
 	if (input.CheckKey('G'))
@@ -86,30 +100,26 @@ static void ProcessInput(float dt)
 	if (input.CheckKey(ARROW_KEY_UP))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 1.0f, 0.0f));
-		s_witnessPoints.clear();
-		s_simplexArray.clear();
-		s_simplexIndex = 0;
+		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
+		ResetSimplex();
 	}
 	if (input.CheckKey(ARROW_KEY_DOWN))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, -1.0f, 0.0f));
-		s_witnessPoints.clear();
-		s_simplexArray.clear();
-		s_simplexIndex = 0;
+		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
+		ResetSimplex();
 	}
 	if (input.CheckKey(ARROW_KEY_LEFT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, 1.0f));
-		s_witnessPoints.clear();
-		s_simplexArray.clear();
-		s_simplexIndex = 0;
+		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
+		ResetSimplex();
 	}
 	if (input.CheckKey(ARROW_KEY_RIGHT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, -1.0f));
-		s_witnessPoints.clear();
-		s_simplexArray.clear();
-		s_simplexIndex = 0;
+		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
+		ResetSimplex();
 	}
 
 	if (input.CheckKey('Z'))
@@ -126,24 +136,21 @@ static void Update(float dt)
 
 static void Draw()
 {
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glPointSize(4.f);
+
 
 	if (s_witnessPoints.size())
 	{
-		const vector4 witnessPointColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+		const vector4 witnessPointAColor = { 0.0f, 1.0f, 0.0f, 1.0f };
+		const vector4 witnessPointBColor = { 1.0f, 0.0f, 0.0f, 1.0f };
 		glBegin(GL_POINTS);
-		glColor4fv((GLfloat*)&witnessPointColor);
+		glColor4fv((GLfloat*)&witnessPointAColor);
 		glVertex3fv((GLfloat*)&s_witnessPoints[0]);
 		glVertex3fv((GLfloat*)&s_witnessPoints[1]);
 		glEnd();
 
 		glBegin(GL_LINES);
-		glColor4fv((GLfloat*)&witnessPointColor);
+		glColor4fv((GLfloat*)&witnessPointBColor);
 		vector3 ab = s_witnessPoints[1] - s_witnessPoints[0];
 		glVertex3fv((GLfloat*)&ab);
 		glEnd();
@@ -151,6 +158,8 @@ static void Draw()
 
 	if (s_simplexView)
 	{
+		glDisable(GL_LIGHTING);
+
 		GLfloat modelMatrix[16];
 		glGetFloatv(GL_MODELVIEW_MATRIX, modelMatrix);
 		glPushMatrix();
@@ -205,19 +214,22 @@ static void Draw()
 				case 4:
 					glBegin(GL_TRIANGLES);
 					//ADB, ACD, CDB, ABC
-					glColor4fv((GLfloat*)(&simplexColor));
+					glColor4f(0.2f, 0.2f, 0.2f, 0.2f);
 					glVertex3fv((GLfloat*)(&s.verts[0].p));
 					glVertex3fv((GLfloat*)(&s.verts[3].p));
 					glVertex3fv((GLfloat*)(&s.verts[1].p));
 
+					glColor4f(0.4f, 0.4f, 0.4f, 0.2f);
 					glVertex3fv((GLfloat*)(&s.verts[0].p));
 					glVertex3fv((GLfloat*)(&s.verts[2].p));
 					glVertex3fv((GLfloat*)(&s.verts[3].p));
 
+					glColor4f(0.6f, 0.6f, 0.6f, 0.2f);
 					glVertex3fv((GLfloat*)(&s.verts[2].p));
 					glVertex3fv((GLfloat*)(&s.verts[3].p));
 					glVertex3fv((GLfloat*)(&s.verts[1].p));
 
+					glColor4f(0.8f, 0.8f, 0.8f, 0.2f);
 					glVertex3fv((GLfloat*)(&s.verts[0].p));
 					glVertex3fv((GLfloat*)(&s.verts[1].p));
 					glVertex3fv((GLfloat*)(&s.verts[2].p));
@@ -230,38 +242,73 @@ static void Draw()
 	}
 	else
 	{
+		GLfloat lightPos[][3] = {
+			{ -50.f, 10.f, -50.f },
+			{  50.f, 10.f, -50.f },
+			{ -50.f, 10.f,  50.f },
+			{  50.f, 10.f,  50.f },
+		};
+		GLfloat lightAmbient[][3] = {
+			{ .7f, .7f, .7f },
+			{ .7f, .7f, .7f },
+			{ .7f, .7f, .7f },
+			{ .7f, .7f, .7f },
+		};
+		GLfloat lightDiffuse[][3] = {
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+		};
+		GLfloat lightSpecular[][3] = {
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 1.0f },
+		};
+		for (int i = 0; i < 4; i++)
+		{
+			glLightfv(GL_LIGHT0 + i, GL_POSITION, lightPos[i]);
+			glLightfv(GL_LIGHT0 + i, GL_AMBIENT, lightAmbient[i]);
+			glLightfv(GL_LIGHT0 + i, GL_DIFFUSE, lightDiffuse[i]);
+			glLightfv(GL_LIGHT0 + i, GL_SPECULAR, lightSpecular[i]);
+			glEnable(GL_LIGHT0 + i);
+		}
 
+		glEnable(GL_LIGHTING);
+		glEnable(GL_DEPTH_TEST);
 		{
 			matrix4 m = s_circle.m_phys->GetTransform();
 			m = m.t();
 			DrawParams p;
-			p.drawType = GL_TRIANGLES;
+			p.drawType = DrawType_Triangles;
 			p.color = vector4(0.0f, 0.2f, 0.0f, 0.7f);
-			Platform_DrawGeometry(s_circle.m_geo, m, &p);
+			s_circle.m_geo->Draw(m, &p);
 		}
 
 		{
 			matrix4 m = s_board.m_phys->GetTransform();
 			m = m.t();
 			DrawParams p;
-			p.drawType = GL_TRIANGLES;
+			p.drawType = DrawType_Triangles;
 			p.color = vector4(0.2f, 0.0f, 0.0f, 0.7f);
-			Platform_DrawGeometry(s_board.m_geo, m, &p);
+			s_board.m_geo->Draw(m, &p);
 		}
 	}
 }
 
 static void CreateCircle()
 {
-	s_circle.m_geo = new Geometry();
-	GeoHelpers::CreateIcosahadron(5, s_circle.m_geo);
+	s_circle.m_geo = new SphereGeometry(5.0f);
 
 	constexpr float CIRCLE_SIZE = 5.0f;
 
 	StaticPhysicsData physData;
 	physData.m_gravity = { 0.0f, 0.0f, 0.0f };
-	physData.m_initialPosition = { 0.0f, 4.41799498f, 0.0f };
-	physData.m_initialRotation = { 0.0f, 0.0f, 0.0f };
+	//physData.m_initialPosition = { -1.58030558f, -6.79232216f, -0.412327528f };
+	//physData.m_initialRotation = { 0.359199494f, 20.3241673f, -0.861259818f };
+	physData.m_initialPosition = { 0.f, 8.72999573f, 0.f };
+	physData.m_initialRotation = { 0.f, 20.f, 0.f };
 	physData.m_mass = 10.0f;
 	physData.m_elasticity = 0.4f;
 	physData.m_staticFrictionCoeff = 0.4f;
@@ -276,8 +323,7 @@ static void CreateCircle()
 
 static void CreateBoard()
 {
-	s_board.m_geo = new Geometry();
-	GeoHelpers::CreateCube(50, 2, s_board.m_geo);
+	s_board.m_geo = new BoxGeometry(50.f,50.f,2.f);
 
 	constexpr float CIRCLE_SIZE = 5.0f;
 
@@ -301,9 +347,9 @@ void TestSimplex()
 	const vector3& destination = vector3();
 	s_iterCount = 0;
 	s_collisionParams.a = s_circle.m_geo;
-	s_collisionParams.aPos = s_circle.m_phys->GetPosition();
+	s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 	s_collisionParams.b = s_board.m_geo;
-	s_collisionParams.bPos = s_board.m_phys->GetPosition();
+	s_collisionParams.bTransform = s_board.m_phys->GetTransform();
 
 	PlatformParams p;
 	p.windowPos[0] = 100;

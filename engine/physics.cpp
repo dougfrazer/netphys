@@ -49,30 +49,30 @@ void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
     }
 
     // apply friction
-    if (m_static.m_staticFrictionCoeff)
-    {
-        v = m_linearMomentum * (1.0f / m_static.m_mass);
-        velocityAtPoint = v + w.cross(r);
-        float relVelNormal = velocityAtPoint.dot(n);
-        if (!FloatEquals(relVelNormal, 0.0f))
-        {
-            vector3 vt = velocityAtPoint - n * relVelNormal; // velocity in directions other than contact normal
-            vt.normalize();
-            float it = velocityAtPoint.dot(vt);
-            float kt = (1.0f / m_static.m_mass) + ((m_static.m_inverseInertiaTensor * r.cross(vt)).cross(r)).dot(vt);
-            float frictionCoeff = m_static.m_staticFrictionCoeff * j;
-            float jt = clamp(-it / kt, -frictionCoeff, frictionCoeff);
-            m_linearMomentum = m_linearMomentum + vt * jt;
-            m_angularMomentum = m_angularMomentum + r.cross(vt) * jt;
-        }
-        else
-        {
-            // if the sum of all external forces on the body are non-zero, we can use that?  
-            // see https://en.wikipedia.org/wiki/Collision_response
-        }
-
-
-    }
+    //if (m_static.m_staticFrictionCoeff)
+    //{
+    //    v = m_linearMomentum * (1.0f / m_static.m_mass);
+    //    velocityAtPoint = v + w.cross(r);
+    //    float relVelNormal = velocityAtPoint.dot(n);
+    //    if (!FloatEquals(relVelNormal, 0.0f))
+    //    {
+    //        vector3 vt = velocityAtPoint - n * relVelNormal; // velocity in directions other than contact normal
+    //        vt.normalize();
+    //        float it = velocityAtPoint.dot(vt);
+    //        float kt = (1.0f / m_static.m_mass) + ((m_static.m_inverseInertiaTensor * r.cross(vt)).cross(r)).dot(vt);
+    //        float frictionCoeff = m_static.m_staticFrictionCoeff * j;
+    //        float jt = clamp(-it / kt, -frictionCoeff, frictionCoeff);
+    //        m_linearMomentum = m_linearMomentum + vt * jt;
+    //        m_angularMomentum = m_angularMomentum + r.cross(vt) * jt;
+    //    }
+    //    else
+    //    {
+    //        // if the sum of all external forces on the body are non-zero, we can use that?  
+    //        // see https://en.wikipedia.org/wiki/Collision_response
+    //    }
+    //
+    //
+    //}
 
 
 #if DEBUG_ENERGY
@@ -127,9 +127,13 @@ std::vector<Collision> GetCollisions(std::vector<Physics*> updateList)
             CollisionData collisionData;
             CollisionParams p;
             p.a = a->GetGeometry();
-            p.aPos = a->GetPosition();
+            #ifdef TEST_PROGRAM
+            vector3 r = a->GetRotation();
+            vector3 d = a->GetPosition();
+            #endif
+            p.aTransform = a->GetTransform();
             p.b = b->GetGeometry();
-            p.bPos = b->GetPosition();
+            p.bTransform = b->GetTransform();
             if (DetectCollision(p, &collisionData))
             {
                 collisions.push_back({ *it, *innerIt, collisionData });

@@ -102,8 +102,8 @@ struct CollisionParams
 {
     const Geometry* a;
     const Geometry* b;
-    vector3  aPos;
-    vector3  bPos;
+    matrix4  aTransform;
+    matrix4  bTransform;
 };
 bool DetectCollision(const CollisionParams& params, CollisionData* outCollision);
 // separated out for testing purposes

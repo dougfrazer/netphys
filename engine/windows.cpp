@@ -6,6 +6,7 @@
 #include <thread>
 #include <gl/GL.h>
 #include <gl/GLU.h>
+#include <vector>
 
 #include "geometry.h"
 #include "lib.h"
@@ -162,6 +163,13 @@ static void StartDrawFrame()
 	glRotatef(float((int)s_cameraOrbit.x % 360), 1.0, 0.0, 0.0);
 	glRotatef(float((int)s_cameraOrbit.y % 360), 0.0, 1.0, 0.0);
 	glRotatef(float((int)s_cameraOrbit.z % 360), 0.0, 0.0, 1.0);
+
+    // just assume we want alpha blending and depth testing
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 //-------------------------------------------------------------------------------------------------
 void Platform_Run(const PlatformParams& params)
@@ -273,7 +281,7 @@ void Platform_Run(const PlatformParams& params)
                 
 			// sleep if necessary
 			frameEnd = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double, std::milli> frameTime = frameStart - frameEnd;
+			std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
 			if (frameTime.count() < MAX_FPS_MS)
 			{
 				std::chrono::duration<double, std::milli> delta_ms(MAX_FPS_MS - frameTime.count());
@@ -347,10 +355,16 @@ void Platform_BasicCameraInput(const Input& input, float dt)
 {
 	if (input.mouseInput & LEFT_BUTTON)
 	{
-        // camera orbit: x=yaw, y=roll, z=pitch
-		//s_cameraOrbit.z += input.x; 
 		s_cameraOrbit.y += input.x;
 	}
+	//if (input.mouseInput & RIGHT_BUTTON)
+	//{
+	//	s_cameraOrbit.z += input.y;
+	//}
+	//if (input.mouseInput & MIDDLE_BUTTON)
+	//{
+	//	s_cameraOrbit.x += input.x;
+	//}
 	if (input.CheckKey('W'))
 	{
 		s_cameraPos.x -= BASIC_CAMERA_SPEED * dt;
@@ -384,39 +398,3 @@ void Platform_BasicCameraInput(const Input& input, float dt)
 
 }
 
-//-------------------------------------------------------------------------------------------------
-void Platform_DrawGeometry(const Geometry* geometry, const matrix4& t, DrawParams* params)
-{
-    GLfloat modelMatrix[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, modelMatrix);
-
-    glPushMatrix();
-
-    glGetFloatv(GL_MODELVIEW_MATRIX, modelMatrix);
-
-    matrix4 transform = t * matrix4((float*)modelMatrix);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf((GLfloat*)&transform);
-
-    if (params)
-    {
-        glBegin(params->drawType);
-        glColor4fv((GLfloat*)&params->color);
-    }
-    else
-    {
-        glBegin(GL_LINE_STRIP);
-        glColor3f(0.0, 1.0, 0.0);
-    }
-
-    for (int i = 0; i < geometry->m_numFaces; i++)
-    {
-        glVertex3fv((GLfloat*)&geometry->m_vertexList[geometry->m_faceList[i].v1]);
-        glVertex3fv((GLfloat*)&geometry->m_vertexList[geometry->m_faceList[i].v2]);
-        glVertex3fv((GLfloat*)&geometry->m_vertexList[geometry->m_faceList[i].v3]);
-    }
-    glEnd();
-
-    glPopMatrix();
-}

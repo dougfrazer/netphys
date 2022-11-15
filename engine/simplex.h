@@ -2,8 +2,6 @@
 
 struct SimplexPoint
 {
-	int indexA;
-	int indexB;
 	vector3 A;
 	vector3 B;
 	vector3 p;

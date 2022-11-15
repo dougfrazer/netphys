@@ -1,7 +1,6 @@
 #pragma once
 
 #include "quaternion.h"
-#include "geometry.h"
 #include "lib.h"
 
 //******************************************************************************
@@ -22,13 +21,6 @@ public:
         y = 0.0f;
         z = 0.0f;
         w = 0.0f;
-    }
-    vector4(const vertex& v)
-    {
-        x = v.x;
-        y = v.y;
-        z = v.z;
-        w = 1.0f;
     }
     vector4(const float _x, const float _y, const float _z, float _w)
     {
@@ -124,12 +116,6 @@ public:
         x = v;
         y = v;
         z = v;
-    }
-    vector3(const vertex& v)
-    {
-        x = v.x;
-        y = v.y;
-        z = v.z;
     }
     vector3(const vector4& v)
     {
@@ -241,7 +227,6 @@ public:
     {
         return a.cross(b).magnitude();
     }
-
 //    vector3  rotate(vector3 axis, float degrees) const
 //    {
 //        quaternion q(axis, degrees);
@@ -250,4 +235,14 @@ public:
 //        return vector3(p_prime.x, p_prime.y, p_prime.z);
 //    }
 };
+
+namespace Coordinates
+{
+    static vector3 GetUp()    { return vector3( 0.0f, 1.0f, 0.0f); }
+    static vector3 GetDown()  { return vector3( 0.0f,-1.0f, 0.0f); }
+    static vector3 GetLeft()  { return vector3( 0.0f, 0.0f,-1.0f); }
+    static vector3 GetRight() { return vector3( 0.0f, 0.0f, 1.0f); }
+    static vector3 GetIn()    { return vector3( 1.0f, 0.0f, 0.0f); }
+    static vector3 GetOut()   { return vector3(-1.0f, 0.0f, 0.0f); }
+}
 

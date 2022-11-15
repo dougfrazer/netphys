@@ -145,6 +145,10 @@ public:
 		v.w = w1 * B.x + w2 * B.y + w3 * B.z + w4 * B.w;
 		return v;
 	}
+	vector4 operator*(const vector3& B) const
+	{
+		return operator*(vector4({B.x,B.y,B.z,1.0f}));
+	}
 	matrix4 operator*(const matrix4& b) const
 	{
 		matrix4 m; 
