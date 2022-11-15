@@ -295,13 +295,13 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 	//  there are four triangles:
     //
-    //     A        A        A        C                                      
+    //     A        A        D        B                                      
     //     *        *        *        *                                
     //    / \      / \      / \      / \                                 
     //   *---*    *---*    *---*    *---*                                          
-    //   D   B    D   C    C   B    D   B                           
+    //   B   C    C   D    B   A    D   C                           
     //
-    //  ABD, ACD, ABC, CBD
+    //  ABC, ACD, DBA, BDC
     // 
     // and six edges:
     // edge regions: AB, AC, AD, CB, CD, BD
@@ -317,28 +317,28 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     //     if it violates both of these (outside the triangles the edge is attached to) it must be
     //     in this edge region
 
-	vector3 nADB = ad.cross(ab);
-	float uADB = vector3::triple_product(d, b, nADB);
-	float vADB = vector3::triple_product(b, a, nADB);
-	float wADB = vector3::triple_product(a, d, nADB);
+	vector3 nABC = ab.cross(ac);
+	float uABC = vector3::triple_product(b, c, nABC);
+	float vABC = vector3::triple_product(c, a, nABC);
+	float wABC = vector3::triple_product(a, b, nABC);
 
 	vector3 nACD = ac.cross(ad);
 	float uACD = vector3::triple_product(c, d, nACD);
 	float vACD = vector3::triple_product(d, a, nACD);
 	float wACD = vector3::triple_product(a, c, nACD);
 
-	vector3 nCBD = cb.cross(cd);
-	float uCBD = vector3::triple_product(b, d, nCBD);
-	float vCBD = vector3::triple_product(d, c, nCBD);
-	float wCBD = vector3::triple_product(c, b, nCBD);
+	vector3 nDBA = ad.cross(ab);
+	float uDBA = vector3::triple_product(b, a, nDBA);
+	float vDBA = vector3::triple_product(a, d, nDBA);
+	float wDBA = vector3::triple_product(d, b, nDBA);
 
-	vector3 nABC = ab.cross(ac);
-	float uABC = vector3::triple_product(b, c, nABC);
-	float vABC = vector3::triple_product(c, a, nABC);
-	float wABC = vector3::triple_product(a, b, nABC);
+	vector3 nBDC = bd.cross(bc);
+	float uBDC = vector3::triple_product(d, c, nBDC);
+	float vBDC = vector3::triple_product(c, b, nBDC);
+	float wBDC = vector3::triple_product(b, d, nBDC);
 
     // region AB
-    if (uAB > 0.0f && vAB > 0.0f && wABC <= 0.0f && vADB <= 0.0f)
+    if (uAB > 0.0f && vAB > 0.0f && wABC <= 0.0f && uDBA <= 0.0f)
     {
         simplex.verts[0].u = uAB;
         simplex.verts[1].u = vAB;
@@ -360,7 +360,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 
     // region AD
-    if (uAD > 0.0f && vAD > 0.0f && vACD <= 0.0f && wADB <= 0.0f)
+    if (uAD > 0.0f && vAD > 0.0f && vACD <= 0.0f && vDBA <= 0.0f)
     {
 		simplex.verts[1] = simplex.verts[3]; // 2nd->d
 		simplex.verts[0].u = uAD;
@@ -371,7 +371,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 
     // region CB
-    if (uBC > 0.0f && vBC > 0.0f && uABC <= 0.0f && wCBD <= 0.0f)
+    if (uBC > 0.0f && vBC > 0.0f && uABC <= 0.0f && vBDC <= 0.0f)
     {
 		simplex.verts[0] = simplex.verts[1]; // 1st->b
 		simplex.verts[1] = simplex.verts[2]; // 2nd->c
@@ -383,7 +383,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 
     // region CD
-    if (uDC > 0.0f && vDC > 0.0f && vCBD <= 0.0f && uACD <= 0.0f)
+    if (uDC > 0.0f && vDC > 0.0f && uBDC <= 0.0f && uACD <= 0.0f)
     {
 		simplex.verts[0] = simplex.verts[3]; // 1st->d
 		simplex.verts[1] = simplex.verts[2]; // 2nd->c
@@ -395,7 +395,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 
     // region BD
-    if (uBD > 0.0f && vBD > 0.0f && uADB <= 0.0f && uCBD <= 0.0f)
+    if (uBD > 0.0f && vBD > 0.0f && wDBA <= 0.0f && wBDC <= 0.0f)
     {
 		simplex.verts[0] = simplex.verts[1]; // 1st->b
 		simplex.verts[1] = simplex.verts[3]; // 2nd->d
@@ -407,77 +407,76 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     }
 
     // triangle region: 
-	//     there are four triangles:
-    //
-	//     A        A        A        C                                      
+	//  there are four triangles:
+	//
+	//     A        A        D        B                                      
 	//     *        *        *        *                                
 	//    / \      / \      / \      / \                                 
 	//   *---*    *---*    *---*    *---*                                          
-	//   D   B    D   C    B   C    D   B                           
-    //
-    //  ABD, ACD, ABC, CBD
+	//   B   C    C   D    B   A    D   C                           
+	//
+	//  ABC, ACD, DBA, BDC
     // 
 
     float aABCD = vector3::triple_product(bc, ba, bd);
-    float uABCD = vector3::triple_product(c, d, b);
-	float vABCD = vector3::triple_product(c, a, d);
-	float wABCD = vector3::triple_product(d, a, b);
-	float xABCD = vector3::triple_product(b, a, c);
+    float uABCD = vector3::triple_product(b, d, c);
+	float vABCD = vector3::triple_product(a, c, d);
+	float wABCD = vector3::triple_product(d, b, a);
+	float xABCD = vector3::triple_product(a, b, c);
 
-    // region ADB
-    if (uABCD <= 0.0f && uCBD > 0.0f && vCBD > 0.0f && wCBD > 0.0f)
-    {
-        simplex.verts[2] = simplex.verts[3]; // c = d
-        simplex.verts[0].u = uCBD;
-        simplex.verts[1].u = vCBD;
-        simplex.verts[2].u = wCBD;
-        simplex.divisor = nCBD.magnitude_sq();
-        assert(FloatEquals(uCBD + vCBD + wCBD, nCBD.magnitude_sq()));
-        simplex.count = 3;
-        return;
-    }
-
-    // region ACD
-    if (vABCD <= 0.0f && uACD > 0.0f && vACD > 0.0f && wACD > 0.0f)
-    {
-		simplex.verts[1] = simplex.verts[3]; // b = d
-		simplex.verts[0].u = uACD;
-		simplex.verts[1].u = vACD;
-		simplex.verts[2].u = wACD;
-		simplex.divisor = nACD.magnitude_sq();
-        assert(FloatEquals(uACD + vACD + wACD, nACD.magnitude_sq()));
-		simplex.count = 3;
-		return;
-    }
-
-    // region ABC
-    if (xABCD <= 0.0f && uABC > 0.0f && vABC > 0.0f && wABC > 0.0f)
-    {
-		simplex.verts[3] = simplex.verts[1]; // copy b into d
-		simplex.verts[1] = simplex.verts[2]; // b = c
-		simplex.verts[2] = simplex.verts[3]; // c = b (copy in d)
+	// region ABC
+	if (xABCD <= 0.0f && uABC > 0.0f && vABC > 0.0f && wABC > 0.0f)
+	{
 		simplex.verts[0].u = uABC;
 		simplex.verts[1].u = vABC;
 		simplex.verts[2].u = wABC;
 		simplex.divisor = nABC.magnitude_sq();
-        assert(FloatEquals(uABC + vABC + wABC, nABC.magnitude_sq()));
+		assert(FloatEquals(uABC + vABC + wABC, nABC.magnitude_sq()));
 		simplex.count = 3;
 		return;
-    }
+	}
 
-    // region CBD
-    if (wABCD <= 0.0f && uADB > 0.0f && vADB > 0.0f && wADB > 0.0f)
-    {
-		simplex.verts[0] = simplex.verts[2]; // a = c
-		simplex.verts[2] = simplex.verts[1]; // c = b
-		simplex.verts[1] = simplex.verts[3]; // b = d
-		simplex.verts[0].u = uADB;
-		simplex.verts[1].u = vADB;
-		simplex.verts[2].u = wADB;
-		simplex.divisor = nADB.magnitude_sq();
-        assert(FloatEquals(uADB + vADB + wADB, nADB.magnitude_sq()));
+	// region ACD
+	if (vABCD <= 0.0f && uACD > 0.0f && vACD > 0.0f && wACD > 0.0f)
+	{
+		simplex.verts[1] = simplex.verts[2]; // 2nd->c
+		simplex.verts[2] = simplex.verts[3]; // 3rd->d
+		simplex.verts[0].u = uACD;
+		simplex.verts[1].u = vACD;
+		simplex.verts[2].u = wACD;
+		simplex.divisor = nACD.magnitude_sq();
+		assert(FloatEquals(uACD + vACD + wACD, nACD.magnitude_sq()));
 		simplex.count = 3;
 		return;
+	}
+
+	// region DBA
+	if (wABCD <= 0.0f && uDBA > 0.0f && vDBA > 0.0f && wDBA > 0.0f)
+	{
+		simplex.verts[2] = simplex.verts[0]; // 3rd->a
+		simplex.verts[0] = simplex.verts[3]; // 1st->d
+		simplex.verts[0].u = uDBA;
+		simplex.verts[1].u = vDBA;
+		simplex.verts[2].u = wDBA;
+		simplex.divisor = nDBA.magnitude_sq();
+		assert(FloatEquals(uDBA + vDBA + wDBA, nDBA.magnitude_sq()));
+		simplex.count = 3;
+		return;
+	}
+
+    // region BDC
+    if (uABCD <= 0.0f && uBDC > 0.0f && vBDC > 0.0f && wBDC > 0.0f)
+    {
+        simplex.verts[0] = simplex.verts[1]; // 1st->b
+        simplex.verts[1] = simplex.verts[3]; // 2nd->d
+        simplex.verts[2] = simplex.verts[2]; // 3rd->c
+        simplex.verts[0].u = uBDC;
+        simplex.verts[1].u = vBDC;
+        simplex.verts[2].u = wBDC;
+        simplex.divisor = nBDC.magnitude_sq();
+        assert(FloatEquals(uBDC + vBDC + wBDC, nBDC.magnitude_sq()));
+        simplex.count = 3;
+        return;
     }
 
 	// otherwise, we must be inside ABCD
@@ -662,8 +661,8 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
         GetWitnessPoints(simplex, pa, pb);
         outCollision->point = pa;
         outCollision->depth = (pb - pa).magnitude();
-        //outCollision->planeNormal = {0.0f,1.0f,0.0f};
-        outCollision->planeNormal = (pb - pa).cross(up).normalize();
+        outCollision->planeNormal = {0.0f,1.0f,0.0f};
+        //outCollision->planeNormal = (pb - pa).cross(up).normalize();
     }
     return true;
 }
