@@ -23,28 +23,38 @@ static struct
 	Physics* m_phys = nullptr;
 } s_board;
 
+struct SimplexResult
+{
+	Simplex simplex;
+	vector3 witnessPoints[2];
+	vector3 searchDirection;
+	COLLISION_RESULT result = COLLISION_RESULT_NONE;
+	SimplexResult(const Simplex& s) : simplex(s) {}
+};
 
 static float s_fixedTimestep = 1.f / 30.f;
-static std::vector<Simplex> s_simplexArray;
+static std::vector<SimplexResult> s_simplexs;
 static int s_iterCount = 0;
 static CollisionParams s_collisionParams;
 static int s_simplexIndex = 0;
 static bool s_simplexView = true;
-static std::vector<vector3> s_witnessPoints;
 
 static void ResetSimplex()
 {
-	s_simplexArray.clear();
+	s_simplexs.clear();
 	vector3 a_local = s_circle.m_geo->GetRandomPointOnEdge();
 	vector3 b_local = s_board.m_geo->GetRandomPointOnEdge();
 	Simplex simplex;
-	simplex.verts[0].A = a_local + s_circle.m_phys->GetPosition();
-	simplex.verts[0].B = b_local + s_board.m_phys->GetPosition();
+	simplex.verts[0].A = s_circle.m_phys->GetTransform() * a_local;
+	simplex.verts[0].B = s_board.m_phys->GetTransform() * b_local;
 	simplex.verts[0].p = simplex.verts[0].A - simplex.verts[0].B;
+	simplex.verts[0].u = 1.0f;
+	simplex.divisor = 1.0f;
 	simplex.count = 1;
-	s_simplexArray.push_back(simplex);
+	SimplexResult start(simplex);
+	start.searchDirection = GetSearchDirection(start.simplex, vector3());
+	s_simplexs.push_back(start);
 	s_simplexIndex = 0;
-	s_witnessPoints.clear();
 }
 
 static void ProcessInput(float dt)
@@ -54,42 +64,29 @@ static void ProcessInput(float dt)
 
 	if (input.CheckKey('T'))
 	{
-		s_simplexIndex++;
-		if (s_simplexIndex == s_simplexArray.size())
+		if (s_simplexs[s_simplexIndex].result != COLLISION_RESULT_NO_OVERLAP)
 		{
-			Simplex next = s_simplexArray.back();
-			COLLISION_STEP s = DetectCollisionStep(s_collisionParams, next, vector3());
-			switch (s)
+			s_simplexIndex++;
+			if (s_simplexIndex == s_simplexs.size())
 			{
-				case COLLISION_STEP_SUCCESS:
+				SimplexResult next = Simplex(s_simplexs.back().simplex);
+				next.result = DetectCollisionStep(s_collisionParams, next.simplex, vector3());
+				if (next.simplex.count < 4)
 				{
-					vector3 a, b;
-					GetWitnessPoints(next, a, b);
-					s_witnessPoints.push_back(a);
-					s_witnessPoints.push_back(b);
-					s_simplexArray.push_back(next);
+					next.searchDirection = GetSearchDirection(next.simplex, vector3());
 				}
-				break;
-
-				case COLLISION_STEP_FAILURE:
+				
+				if (next.result != COLLISION_RESULT_CONTINUE)
 				{
-					s_witnessPoints.clear();
+					GetWitnessPoints(next.simplex, next.witnessPoints[0], next.witnessPoints[1]);
 				}
-				break;
-
-				case COLLISION_STEP_CONTINUE:
-				{
-					s_witnessPoints.clear();
-					s_simplexArray.push_back(next);
-				}
-				break;
+				s_simplexs.push_back(next);
 			}
-		}	
+		}
 	}
 	if (input.CheckKey('G'))
 	{
 		s_simplexIndex = max(0, s_simplexIndex - 1);
-		s_witnessPoints.clear();
 	}
 	if (input.CheckKey('R'))
 	{
@@ -138,21 +135,23 @@ static void Draw()
 {
 	glPointSize(4.f);
 
-
-	if (s_witnessPoints.size())
+	const auto& result = s_simplexs[s_simplexIndex];
+	if (result.result == COLLISION_RESULT_OVERLAP || result.result == COLLISION_RESULT_NO_OVERLAP)
 	{
 		const vector4 witnessPointAColor = { 0.0f, 1.0f, 0.0f, 1.0f };
 		const vector4 witnessPointBColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+		const vector4 witnessLineColor   = { 1.0f, 1.0f, 1.0f, 1.0f };
 		glBegin(GL_POINTS);
 		glColor4fv((GLfloat*)&witnessPointAColor);
-		glVertex3fv((GLfloat*)&s_witnessPoints[0]);
-		glVertex3fv((GLfloat*)&s_witnessPoints[1]);
+		glVertex3fv((GLfloat*)&result.witnessPoints[0]);
+		glColor4fv((GLfloat*)&witnessPointBColor);
+		glVertex3fv((GLfloat*)&result.witnessPoints[1]);
 		glEnd();
 
 		glBegin(GL_LINES);
-		glColor4fv((GLfloat*)&witnessPointBColor);
-		vector3 ab = s_witnessPoints[1] - s_witnessPoints[0];
-		glVertex3fv((GLfloat*)&ab);
+		glColor4fv((GLfloat*)&witnessLineColor);
+		glVertex3fv((GLfloat*)&result.witnessPoints[0]);
+		glVertex3fv((GLfloat*)&result.witnessPoints[1]);
 		glEnd();
 	}
 
@@ -168,6 +167,7 @@ static void Draw()
 		glLoadMatrixf((GLfloat*)&modelMatrix);
 
 		
+		// Coordinate Axis Lines
 		glBegin(GL_LINES);
 
 		glColor3f(1.0f, 0.0f, 0.0f);
@@ -184,58 +184,140 @@ static void Draw()
 
 		glEnd();
 
-		if (s_simplexArray.size())
+
+		const auto& s = result.simplex;
+		const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
+		const vector4 searchDirectionColor = { 0.9f, 0.9f, 0.9f, 0.7f };
+		switch (s.count)
 		{
-			const auto& s = s_simplexArray[s_simplexIndex];
-			const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
-			switch (s.count)
+			case 1:
 			{
-				case 1:
-					glBegin(GL_POINTS);
-					glColor4fv((GLfloat*)(&simplexColor));
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glEnd();
-					break;
-				case 2:
-					glBegin(GL_LINES);
-					glColor4fv((GLfloat*)(&simplexColor));
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glVertex3fv((GLfloat*)(&s.verts[1].p));
-					glEnd();
-					break;
-				case 3:
-					glBegin(GL_TRIANGLES);
-					glColor4fv((GLfloat*)(&simplexColor));
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glVertex3fv((GLfloat*)(&s.verts[1].p));
-					glVertex3fv((GLfloat*)(&s.verts[2].p));
-					glEnd();
-					break;
-				case 4:
-					glBegin(GL_TRIANGLES);
-					//ADB, ACD, CDB, ABC
-					glColor4f(0.2f, 0.2f, 0.2f, 0.2f);
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glVertex3fv((GLfloat*)(&s.verts[3].p));
-					glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glBegin(GL_POINTS);
+				glColor4fv((GLfloat*)(&simplexColor));
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glEnd();
 
-					glColor4f(0.4f, 0.4f, 0.4f, 0.2f);
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glVertex3fv((GLfloat*)(&s.verts[2].p));
-					glVertex3fv((GLfloat*)(&s.verts[3].p));
-
-					glColor4f(0.6f, 0.6f, 0.6f, 0.2f);
-					glVertex3fv((GLfloat*)(&s.verts[2].p));
-					glVertex3fv((GLfloat*)(&s.verts[3].p));
-					glVertex3fv((GLfloat*)(&s.verts[1].p));
-
-					glColor4f(0.8f, 0.8f, 0.8f, 0.2f);
-					glVertex3fv((GLfloat*)(&s.verts[0].p));
-					glVertex3fv((GLfloat*)(&s.verts[1].p));
-					glVertex3fv((GLfloat*)(&s.verts[2].p));
-					glEnd();
-					break;
+				vector3 midPoint = (s.verts[0].p);
+				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
+				glBegin(GL_LINES);
+				glColor4fv((GLfloat*)&searchDirectionColor);
+				glVertex3fv((GLfloat*)&midPoint);
+				glVertex3fv((GLfloat*)&searchDirEnd);
+				glEnd();
 			}
+			break;
+
+			case 2:
+			{
+				glBegin(GL_LINES);
+				glColor4fv((GLfloat*)(&simplexColor));
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s.verts[1].p));
+
+				vector3 midPoint = (s.verts[0].p + s.verts[1].p) / 2.0f;
+				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
+				glBegin(GL_LINES);
+				glColor4fv((GLfloat*)&searchDirectionColor);
+				glVertex3fv((GLfloat*)&midPoint);
+				glVertex3fv((GLfloat*)&searchDirEnd);
+				glEnd();
+
+				glBegin(GL_POINTS);
+				glColor3f(1.0f, 0.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glColor3f(0.0f, 1.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glEnd();
+			}
+			break;
+
+			case 3:
+			{
+
+
+				glBegin(GL_TRIANGLES);
+				glColor4fv((GLfloat*)(&simplexColor));
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glEnd();
+
+				vector3 midPoint = (s.verts[0].p + s.verts[1].p + s.verts[2].p) / 3.0f;
+				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
+				glBegin(GL_LINES);
+				glColor4fv((GLfloat*)&searchDirectionColor);
+				glVertex3fv((GLfloat*)&midPoint);
+				glVertex3fv((GLfloat*)&searchDirEnd);
+				glEnd();
+
+				glBegin(GL_POINTS);
+				glColor3f(1.0f, 0.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glColor3f(0.0f, 1.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glColor3f(0.0f, 0.0f, 1.0f);
+				glVertex3fv((GLfloat*)&s.verts[2].p);
+				glEnd();
+			}
+			break;
+
+			case 4:
+			{
+				//  ABC, ACD, DBA, BDC
+				glBegin(GL_TRIANGLES);
+				glColor4f(0.2f, 0.2f, 0.2f, 1.0f);
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glVertex3fv((GLfloat*)(&s.verts[2].p));
+					
+				glColor4f(0.4f, 0.4f, 0.4f, 1.0f);
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glVertex3fv((GLfloat*)(&s.verts[3].p));
+					
+				glColor4f(0.6f, 0.6f, 0.6f, 1.0f);
+				glVertex3fv((GLfloat*)(&s.verts[3].p));
+				glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glVertex3fv((GLfloat*)(&s.verts[0].p));
+					
+				glColor4f(0.8f, 0.8f, 0.8f, 1.0f);
+				glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glVertex3fv((GLfloat*)(&s.verts[3].p));
+				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glEnd();
+
+					
+				vector3 origin;
+				vector3 ABC_center = (s.verts[0].p + s.verts[1].p + s.verts[2].p) / 3.0f;
+				vector3 ACD_center = (s.verts[0].p + s.verts[2].p + s.verts[3].p) / 3.0f;
+				vector3 DBA_center = (s.verts[3].p + s.verts[1].p + s.verts[0].p) / 3.0f;
+				vector3 BDC_center = (s.verts[1].p + s.verts[2].p + s.verts[3].p) / 3.0f;
+				glBegin(GL_LINES);
+				glVertex3fv((GLfloat*)&ABC_center);
+				glVertex3fv((GLfloat*)&origin);
+				glVertex3fv((GLfloat*)&ACD_center);
+				glVertex3fv((GLfloat*)&origin);
+				glVertex3fv((GLfloat*)&DBA_center);
+				glVertex3fv((GLfloat*)&origin);
+				glVertex3fv((GLfloat*)&BDC_center);
+				glVertex3fv((GLfloat*)&origin);
+				glEnd();
+
+				glBegin(GL_POINTS);
+				glColor3f(1.0f, 0.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glColor3f(0.0f, 1.0f, 0.0f);
+				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glColor3f(0.0f, 0.0f, 1.0f);
+				glVertex3fv((GLfloat*)&s.verts[2].p);
+				glColor3f(1.0f, 0.0f, 1.0f);
+				glVertex3fv((GLfloat*)&s.verts[3].p);
+				glEnd();
+			}
+			break;
 		}
 
 		glPopMatrix();
@@ -276,7 +358,6 @@ static void Draw()
 		}
 
 		glEnable(GL_LIGHTING);
-		glEnable(GL_DEPTH_TEST);
 		{
 			matrix4 m = s_circle.m_phys->GetTransform();
 			m = m.t();
@@ -299,16 +380,18 @@ static void Draw()
 
 static void CreateCircle()
 {
-	s_circle.m_geo = new SphereGeometry(5.0f);
-
 	constexpr float CIRCLE_SIZE = 5.0f;
+
+	s_circle.m_geo = new SphereGeometry(CIRCLE_SIZE);
 
 	StaticPhysicsData physData;
 	physData.m_gravity = { 0.0f, 0.0f, 0.0f };
 	//physData.m_initialPosition = { -1.58030558f, -6.79232216f, -0.412327528f };
 	//physData.m_initialRotation = { 0.359199494f, 20.3241673f, -0.861259818f };
-	physData.m_initialPosition = { 0.f, 8.72999573f, 0.f };
-	physData.m_initialRotation = { 0.f, 20.f, 0.f };
+	//physData.m_initialPosition = { 0.f, 8.72999573f, 0.f };
+	//physData.m_initialRotation = { 0.f, 20.f, 0.f };
+	physData.m_initialPosition = { 0.f, 10.f, 0.f };
+	physData.m_initialRotation = { 0.f, 0.f, 0.f };
 	physData.m_mass = 10.0f;
 	physData.m_elasticity = 0.4f;
 	physData.m_staticFrictionCoeff = 0.4f;

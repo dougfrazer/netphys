@@ -61,7 +61,7 @@ class SphereGeometry : public Geometry
 {
 public:
     SphereGeometry(float radius);
-    virtual vector3 GetRandomPointOnEdge() const override { return {0.0f,0.0f,m_radius}; }
+    virtual vector3 GetRandomPointOnEdge() const override { return vector3(0.0f,0.0f,m_radius); }
     virtual vector3 Support(const vector3& dir, const matrix4& world) const override;
 public:
     const float m_radius;

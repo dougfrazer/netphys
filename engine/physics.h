@@ -17,7 +17,7 @@ enum COLLISION_RESPONSE
 };
 struct CollisionData
 {
-    vector3 point;
+    vector3 pointA,pointB;
     vector3 planeNormal;
     float   depth;
 };
@@ -108,12 +108,15 @@ struct CollisionParams
 bool DetectCollision(const CollisionParams& params, CollisionData* outCollision);
 // separated out for testing purposes
 #ifdef TEST_PROGRAM
-enum COLLISION_STEP
+enum COLLISION_RESULT
 {
-    COLLISION_STEP_SUCCESS,
-    COLLISION_STEP_FAILURE,
-    COLLISION_STEP_CONTINUE,
+    COLLISION_RESULT_NONE,
+
+    COLLISION_RESULT_OVERLAP,
+    COLLISION_RESULT_NO_OVERLAP,
+    COLLISION_RESULT_CONTINUE,
 };
-COLLISION_STEP DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex, const vector3& destination);
+COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex, const vector3& destination);
 void GetWitnessPoints(const struct Simplex& s, vector3& outA, vector3& outB);
+vector3 GetSearchDirection(const struct Simplex& simplex, const vector3& destination);
 #endif

@@ -4,7 +4,7 @@
 #include <vector>
 #include <list>
 
-#define DEBUG_ENERGY 1
+#define DEBUG_ENERGY 0
 
 static std::vector<Physics*> s_physicsList(0);
 
@@ -27,7 +27,7 @@ Physics::~Physics()
 void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
 {
     vector3 n = data.planeNormal;
-    vector3 r = data.point - m_position;
+    vector3 r = data.pointA - m_position;
 
     // Attempt to move the bodies out of the collision
     vector3 v = m_linearMomentum * (1.0f / m_static.m_mass);

@@ -23,7 +23,7 @@ void Util_Test()
 int main()
 {
 	Util_Test();
-	TestPhysics();
-	//TestSimplex();
+	//TestPhysics();
+	TestSimplex();
 	return 0;
 }

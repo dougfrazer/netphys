@@ -216,7 +216,7 @@ public:
     // geometrically represents the signed volume of the parallelpiped defined by these three vectors
 	static float triple_product(const vector3& a, const vector3& b, const vector3& c)
 	{
-		return a.dot(b.cross(c));
+		return a.cross(b).dot(c);
 	}
     static float box(const vector3& a, const vector3& b, const vector3& c)
     {

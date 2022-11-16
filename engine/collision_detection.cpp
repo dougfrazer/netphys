@@ -144,17 +144,15 @@ static void SolveTriangle(Simplex& simplex, const vector3& destination)
     //     are counterclockwise, negative if the vertices are clockwise and 
     //     zero if the points are collinear
     vector3 n = ab.cross(ac);
-    float area = n.magnitude_sq();
 
     // compare with the signed area of each edge going to the destination
     // if the signs match, then they must be in the same orientation
     // (clockwise/counterclockwise)
-    float uABC = bo.cross(co).dot(n); // region BC
-    float vABC = co.cross(ao).dot(n); // region AC
-    float wABC = ao.cross(bo).dot(n); // region AB
-    assert(FloatEquals(uABC + vABC + wABC, area));
+    float uABC = vector3::triple_product(b, c, n);
+    float vABC = vector3::triple_product(c, a, n);
+    float wABC = vector3::triple_product(a, b, n);
 
-    if (uAB > 0.0f && vAB > 0.0f && different_sign(wABC, area))
+    if (uAB > 0.0f && vAB > 0.0f && wABC <= 0.0f)
     {
         // region AB
         simplex.verts[0].u = uAB;
@@ -164,7 +162,7 @@ static void SolveTriangle(Simplex& simplex, const vector3& destination)
         return;
     }
 
-    if (uBC > 0.0f && vBC > 0.0f && different_sign(uABC, area))
+    if (uBC > 0.0f && vBC > 0.0f && uABC <= 0.0f)
     {
         // region BC
         simplex.verts[0] = simplex.verts[1]; // 1st->b
@@ -176,7 +174,7 @@ static void SolveTriangle(Simplex& simplex, const vector3& destination)
         return;
     }
 
-    if (uCA > 0.0f && vCA > 0.0f && different_sign(vABC, area))
+    if (uCA > 0.0f && vCA > 0.0f && vABC <= 0.0f)
     {
         simplex.verts[1] = simplex.verts[0]; // 2nd->a
         simplex.verts[0] = simplex.verts[2]; // 1st->c
@@ -192,7 +190,7 @@ static void SolveTriangle(Simplex& simplex, const vector3& destination)
     simplex.verts[0].u = uABC;
     simplex.verts[1].u = vABC;
     simplex.verts[2].u = wABC;
-    simplex.divisor = area;
+    simplex.divisor = n.magnitude_sq();
     simplex.count = 3;
 }
 //******************************************************************************
@@ -310,9 +308,9 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     // 1.) check to see if its within the line segment
     //     for example: for edge AB we'd see if uAB and vAB are both positive
     //     this would mean a projection onto AB from A->destination and BA from B->destination
-    // 2.) check to see if the going to and from the edge to the normals of the triangles they are on
-    //     is in a counter-clockwise direction
-    //     for example: a->b->normal(ABD) and b->a->normal(BAC)
+    // 2.) check to see if the path going in both directions (a->b and b->a for example) of the edge 
+    //     to the normals of the triangles they are on is in a counter-clockwise direction
+    //     for example: a->b->normal(ABC) and b->a->normal(DBA)
     // 
     //     if it violates both of these (outside the triangles the edge is attached to) it must be
     //     in this edge region
@@ -327,7 +325,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
 	float vACD = vector3::triple_product(d, a, nACD);
 	float wACD = vector3::triple_product(a, c, nACD);
 
-	vector3 nDBA = ad.cross(ab);
+	vector3 nDBA = db.cross(da);
 	float uDBA = vector3::triple_product(b, a, nDBA);
 	float vDBA = vector3::triple_product(a, d, nDBA);
 	float wDBA = vector3::triple_product(d, b, nDBA);
@@ -424,7 +422,7 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
 	float wABCD = vector3::triple_product(d, b, a);
 	float xABCD = vector3::triple_product(a, b, c);
 
-	// region ABC
+    // region ABC
 	if (xABCD <= 0.0f && uABC > 0.0f && vABC > 0.0f && wABC > 0.0f)
 	{
 		simplex.verts[0].u = uABC;
@@ -490,22 +488,29 @@ static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
     simplex.count = 4;
 }
 //******************************************************************************
-static const vector3 up = { 0.0f, 1.0f, 0.0f };
-//******************************************************************************
 vector3 GetSearchDirection(const Simplex& simplex, const vector3& destination)
 {
     if (simplex.count == 1)
     {
-        return -simplex.verts[0].p;
+        return destination - simplex.verts[0].p;
     }
     else if (simplex.count == 2)
     {
         const vector3& a = simplex.verts[0].p;
         const vector3& b = simplex.verts[1].p;
         vector3 ab = b - a;
-        vector3 bo = -b;
-        vector3 t = ab.cross(bo);
-        return t.cross(ab);
+        vector3 ao = destination - b;
+        vector3 t = ab.cross(ao);
+        vector3 bt = t.cross(ab);
+        float sign = bt.dot(ao);
+        if (sign > 0.0f)
+        {
+            return bt;
+        }
+        else
+        {
+            return -bt;
+        }
     }
     else if (simplex.count == 3)
     {
@@ -514,9 +519,10 @@ vector3 GetSearchDirection(const Simplex& simplex, const vector3& destination)
         const vector3& c = simplex.verts[2].p;
         vector3 ab = b - a;
         vector3 ac = c - a;
+        vector3 ao = destination - a;
         vector3 n = ab.cross(ac);
-        float sign = n.dot(a);
-        if (sign <= 0.0f)
+        float sign = n.dot(ao);
+        if (sign > 0.0f)
 		{
 			return n;
 		}
@@ -569,7 +575,7 @@ void GetWitnessPoints(const Simplex& s, vector3& outA, vector3& outB)
     }
 }
 //******************************************************************************
-COLLISION_STEP DetectCollisionStep(const CollisionParams& params, Simplex& simplex, const vector3& destination)
+COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, Simplex& simplex, const vector3& destination)
 {
 	Simplex save = simplex;
 	switch (simplex.count)
@@ -595,34 +601,34 @@ COLLISION_STEP DetectCollisionStep(const CollisionParams& params, Simplex& simpl
 
 	if (simplex.count == 4)
 	{
-		return COLLISION_STEP_SUCCESS; // done
+		return COLLISION_RESULT_OVERLAP; // done
 	}
 
 	vector3 d = GetSearchDirection(simplex, destination);
-	if (FloatEquals(d.dot(d), 0.0f))
+	if (FloatEquals(d.magnitude_sq(), 0.0f))
 	{
-		return COLLISION_STEP_FAILURE;
+		return COLLISION_RESULT_NO_OVERLAP;
 	}
 
-	vector3 a_support = params.a->Support(d, params.aTransform);
-	vector3 b_support = params.b->Support(-d, params.bTransform);
-	vector3 support = a_support - b_support;
+	vector3 a_support = params.a->Support(-d, params.aTransform);
+	vector3 b_support = params.b->Support(d, params.bTransform);
+	vector3 support = b_support - a_support;
 	if (d.dot(support) < 0)
 	{
-		return COLLISION_STEP_FAILURE;
+		return COLLISION_RESULT_NO_OVERLAP;
 	}
 	for (int i = 0; i < save.count; ++i)
 	{
 		if (a_support == simplex.verts[i].A && b_support == simplex.verts[i].B)
 		{
-			return COLLISION_STEP_FAILURE;
+			return COLLISION_RESULT_NO_OVERLAP;
 		}
 	}
 	simplex.verts[simplex.count].A = a_support;
 	simplex.verts[simplex.count].B = b_support;
 	simplex.verts[simplex.count].p = support;
 	simplex.count++;
-    return COLLISION_STEP_CONTINUE;
+    return COLLISION_RESULT_CONTINUE;
 }
 
 //******************************************************************************
@@ -635,34 +641,30 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
     // start with any point in the geometries
     simplex.verts[0].A = params.aTransform * params.a->GetRandomPointOnEdge();
     simplex.verts[0].B = params.bTransform * params.b->GetRandomPointOnEdge();
-    simplex.verts[0].p = simplex.verts[0].A - simplex.verts[0].B;
+    simplex.verts[0].p = simplex.verts[0].B - simplex.verts[0].A;
     simplex.count = 1;
 
     const vector3& destination = {0.0f, 0.0f, 0.0f}; // origin
     constexpr int maxIterations = 20;
     int iterCount = 0;
-    COLLISION_STEP step = COLLISION_STEP_CONTINUE;
-    while (step == COLLISION_STEP_CONTINUE && iterCount++ < maxIterations)
+    COLLISION_RESULT result = COLLISION_RESULT_CONTINUE;
+    while (result == COLLISION_RESULT_CONTINUE && iterCount++ < maxIterations)
     {
-        step = DetectCollisionStep(params, simplex, destination);
+        result = DetectCollisionStep(params, simplex, destination);
     }
     assert(iterCount < maxIterations); // if we bailed due to iterations... we have undefined collision
-    assert(step != COLLISION_STEP_CONTINUE);
+    assert(result != COLLISION_RESULT_CONTINUE);
 
-    // no overlap
-    if (step == COLLISION_STEP_FAILURE)
-    {
-        return false;
-    }
+	if (outCollision)
+	{
+		vector3 pa, pb;
+		GetWitnessPoints(simplex, pa, pb);
+		outCollision->pointA = pa;
+		outCollision->pointB = pb;
+		outCollision->depth = (pb - pa).magnitude();
+		outCollision->planeNormal = { 0.0f,1.0f,0.0f };
+		//outCollision->planeNormal = (pb - pa).cross(up).normalize();
+	}
 
-    if (outCollision)
-    {
-        vector3 pa,pb;
-        GetWitnessPoints(simplex, pa, pb);
-        outCollision->point = pa;
-        outCollision->depth = (pb - pa).magnitude();
-        outCollision->planeNormal = {0.0f,1.0f,0.0f};
-        //outCollision->planeNormal = (pb - pa).cross(up).normalize();
-    }
-    return true;
+    return (result == COLLISION_RESULT_OVERLAP);
 }

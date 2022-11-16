@@ -126,8 +126,7 @@ void CreateIcosahadron(float r, int numSubdivisions, Mesh* outMesh)
             const vector3& c = vertexList[indexList[j].z];
             auto midPoint = [&](const vector3& a, const vector3& b)
             {
-                vector3 v = a + b;
-                return v * r / v.magnitude();
+                return (a + b).normalize() * r;
             };
             vector3 x = midPoint(a,b);
             vector3 y = midPoint(a,c);
