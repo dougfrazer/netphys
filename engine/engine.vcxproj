@@ -145,6 +145,7 @@
     <ClCompile Include="geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="physics.cpp" />
+    <ClCompile Include="test_2d.cpp" />
     <ClCompile Include="test_physics.cpp" />
     <ClCompile Include="test_simplex.cpp" />
     <ClCompile Include="windows.cpp" />

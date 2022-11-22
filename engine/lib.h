@@ -32,3 +32,29 @@
 static inline bool FloatEquals(float a, float b) { return fabsf(a - b) < (KINDA_CLOSE_ENOUGH * max(1.0f, max(fabsf(a), fabsf(b)))); }
 static inline bool different_sign(float a, float b) { return a * b < 0.0f; }
 static inline bool same_sign(float a, float b) { return a * b >= 0.0f; }
+
+template<typename T> void swap(T& a, T& b) { T tmp = a; a = b; b = tmp; }
+template<typename T> void sort3(T a[3])
+{
+	if(a[0] > a[1])
+		swap(a[0], a[1]);
+	if(a[0] > a[2])
+		swap(a[0], a[2]);
+	if(a[1] > a[2])
+		swap(a[1], a[2]);
+}
+template<typename T> void sort4(T a[4])
+{
+	if (a[0] > a[1])
+		swap(a[0], a[1]);
+	if (a[0] > a[2])
+		swap(a[0], a[2]);
+	if (a[0] > a[3])
+		swap(a[0], a[3]);
+	if (a[1] > a[2])
+		swap(a[1], a[2]);
+	if (a[1] > a[3])
+		swap(a[1], a[3]);
+	if (a[2] > a[3])
+		swap(a[2], a[3]);
+}

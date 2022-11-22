@@ -246,11 +246,18 @@ public:
 		z1 = -sin(r.y);           z2 = sin(r.x)*cos(r.y);                                 z3 = cos(r.x)*cos(r.y);
 	}
 
-	void translate(const vector3& t)
+	void set_translation(const vector3& t)
 	{
 		x4 = t.x;
 		y4 = t.y;
 		z4 = t.z;
+		w4 = 1;
+	}
+	void translate(const vector3& t)
+	{
+		x4 += t.x;
+		y4 += t.y;
+		z4 += t.z;
 		w4 = 1;
 	}
 	void scale(float s)

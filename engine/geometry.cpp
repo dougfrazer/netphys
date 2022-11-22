@@ -218,6 +218,9 @@ vector3 Geometry::Support(const vector3& dir, const matrix4& world) const
 	float dot_product = -std::numeric_limits<float>::infinity();
 	vector3 closestPoint;
 	// todo: do we need to consider all vertices, or can we iteratively solve for the furthest?
+    //       possibly we can be given a previous vertex and consider all the edges to that vertex and
+    //       return the connected vertex that is furthest in the direction... so we only consider
+    //       a few vertices rather than the entire mesh
 	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
 	{
 		vector3 t = world * m_mesh.m_vertices[i].pos;

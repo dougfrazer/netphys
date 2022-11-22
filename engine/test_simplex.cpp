@@ -32,7 +32,6 @@ struct SimplexResult
 	SimplexResult(const Simplex& s) : simplex(s) {}
 };
 
-static float s_fixedTimestep = 1.f / 30.f;
 static std::vector<SimplexResult> s_simplexs;
 static int s_iterCount = 0;
 static CollisionParams s_collisionParams;
@@ -42,17 +41,15 @@ static bool s_simplexView = true;
 static void ResetSimplex()
 {
 	s_simplexs.clear();
-	vector3 a_local = s_circle.m_geo->GetRandomPointOnEdge();
-	vector3 b_local = s_board.m_geo->GetRandomPointOnEdge();
 	Simplex simplex;
-	simplex.verts[0].A = s_circle.m_phys->GetTransform() * a_local;
-	simplex.verts[0].B = s_board.m_phys->GetTransform() * b_local;
+	vector3 a_local = s_collisionParams.a->Support({1,0,0}, matrix4());
+	vector3 b_local = s_collisionParams.b->Support({-1,0,0}, matrix4());
+	simplex.verts.resize(1);
+	simplex.verts[0].A = s_collisionParams.aTransform * a_local;
+	simplex.verts[0].B = s_collisionParams.bTransform * b_local;
 	simplex.verts[0].p = simplex.verts[0].A - simplex.verts[0].B;
-	simplex.verts[0].u = 1.0f;
-	simplex.divisor = 1.0f;
-	simplex.count = 1;
 	SimplexResult start(simplex);
-	start.searchDirection = GetSearchDirection(start.simplex, vector3());
+	start.searchDirection = GetSearchDirection(start.simplex);
 	s_simplexs.push_back(start);
 	s_simplexIndex = 0;
 }
@@ -70,15 +67,15 @@ static void ProcessInput(float dt)
 			if (s_simplexIndex == s_simplexs.size())
 			{
 				SimplexResult next = Simplex(s_simplexs.back().simplex);
-				next.result = DetectCollisionStep(s_collisionParams, next.simplex, vector3());
-				if (next.simplex.count < 4)
+				next.result = DetectCollisionStep(s_collisionParams, next.simplex);
+				if (next.simplex.size() < 4)
 				{
-					next.searchDirection = GetSearchDirection(next.simplex, vector3());
+					next.searchDirection = GetSearchDirection(next.simplex);
 				}
 				
 				if (next.result != COLLISION_RESULT_CONTINUE)
 				{
-					GetWitnessPoints(next.simplex, next.witnessPoints[0], next.witnessPoints[1]);
+					//GetWitnessPoints(next.simplex, next.witnessPoints[0], next.witnessPoints[1]);
 				}
 				s_simplexs.push_back(next);
 			}
@@ -118,7 +115,6 @@ static void ProcessInput(float dt)
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-
 	if (input.CheckKey('Z'))
 	{
 		s_simplexView = !s_simplexView;
@@ -188,7 +184,7 @@ static void Draw()
 		const auto& s = result.simplex;
 		const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
 		const vector4 searchDirectionColor = { 0.9f, 0.9f, 0.9f, 0.7f };
-		switch (s.count)
+		switch (s.size())
 		{
 			case 1:
 			{
@@ -425,14 +421,14 @@ void TestSimplex()
 	CreateCircle();
 	CreateBoard();
 
-	ResetSimplex();
-
-	const vector3& destination = vector3();
-	s_iterCount = 0;
 	s_collisionParams.a = s_circle.m_geo;
 	s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 	s_collisionParams.b = s_board.m_geo;
 	s_collisionParams.bTransform = s_board.m_phys->GetTransform();
+	const vector3& destination = vector3();
+	s_iterCount = 0;
+
+	ResetSimplex();
 
 	PlatformParams p;
 	p.windowPos[0] = 100;

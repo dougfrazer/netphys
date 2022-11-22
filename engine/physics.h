@@ -20,6 +20,7 @@ struct CollisionData
     vector3 pointA,pointB;
     vector3 planeNormal;
     float   depth;
+    bool success = false;
 };
 struct Collision
 {
@@ -104,6 +105,9 @@ struct CollisionParams
     const Geometry* b;
     matrix4  aTransform;
     matrix4  bTransform;
+    vector3 aDir;
+    // todo: need bDir as well?  both objects can be moving..
+    bool solve3D = true;
 };
 bool DetectCollision(const CollisionParams& params, CollisionData* outCollision);
 // separated out for testing purposes
@@ -116,7 +120,7 @@ enum COLLISION_RESULT
     COLLISION_RESULT_NO_OVERLAP,
     COLLISION_RESULT_CONTINUE,
 };
-COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex, const vector3& destination);
-void GetWitnessPoints(const struct Simplex& s, vector3& outA, vector3& outB);
-vector3 GetSearchDirection(const struct Simplex& simplex, const vector3& destination);
+COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex);
+vector3 GetSearchDirection(const struct Simplex& simplex);
+bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, float& outDepth, vector3& outA, vector3& outB, vector3& outp);
 #endif

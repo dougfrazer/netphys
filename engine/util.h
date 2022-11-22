@@ -15,6 +15,12 @@ static vector3 ClosestPointLinePoint(const vector3& p, const vector3& a, const v
 	return a + (b - a) * ratio;
 }
 
+static float LinePointDistanceSq(const vector3& p, const vector3& a, const vector3& b)
+{
+	vector3 c = ClosestPointLinePoint(p, a, b);
+	return (p - c).magnitude_sq();
+}
+
 static float LinePointDistance(const vector3& p, const vector3& a, const vector3& b)
 {
 	vector3 c = ClosestPointLinePoint(p, a, b);
@@ -72,7 +78,7 @@ static float LinePointDistance(const vector3& p, const vector3& a, const vector3
 // 
 // the 'regions' represent what the point is closest to: either a vertex, an edge, or within the triangle
 // regions are: A=1, B=2, C=3, AB=4, AC=5, ABC=0 (ABC means the point is within the triangle)
-//
+// it may also return if the point is ON the triangle... 6=AB 7=AC 8=AD
 static int ClosestPointTrianglePointRatio(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc, float& u, float& v)
 {
 	vector3 A = va;
@@ -120,6 +126,29 @@ static int ClosestPointTrianglePointRatio(const vector3& p, const vector3& va, c
 	{
 		u = 0.0f;
 		return 5;
+	}
+
+	if (FloatEquals(u + v, 1.0f))
+	{
+		return 7;
+	}
+
+	if (u + v > 1.0f)
+	{
+		float divisor = u + v;
+		u = u / divisor;
+		v = v / divisor;
+		return 5;
+	}
+
+	if (FloatEquals(v, 0.0f))
+	{
+		return 6;
+	}
+
+	if (FloatEquals(u, 0.0f))
+	{
+		return 7;
 	}
 
 	assert(u > 0.0f && v > 0.0f);
@@ -322,7 +351,6 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	}
 
 	assert(u > 0.0f && v > 0.0f && w > 0.0f);
-	assert(u < 1.0f && v < 1.0f && w < 1.0f);
 
 	if (u + v + w > 1.0f)
 	{
@@ -332,6 +360,8 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		w = w / divisor;
 		return 14;
 	}
+
+	assert(u < 1.0f && v < 1.0f && w < 1.0f);
 
 	// if we got here there is a positive contribution of all edges
 	// and the total sum doesn't push it outside the tetrahedron

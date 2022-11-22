@@ -357,14 +357,14 @@ void Platform_BasicCameraInput(const Input& input, float dt)
 	{
 		s_cameraOrbit.y += input.x;
 	}
-	//if (input.mouseInput & RIGHT_BUTTON)
-	//{
-	//	s_cameraOrbit.z += input.y;
-	//}
-	//if (input.mouseInput & MIDDLE_BUTTON)
-	//{
-	//	s_cameraOrbit.x += input.x;
-	//}
+	if (input.mouseInput & RIGHT_BUTTON)
+	{
+		s_cameraOrbit.z += input.y;
+	}
+	if (input.mouseInput & MIDDLE_BUTTON)
+	{
+		s_cameraOrbit.x += input.x;
+	}
 	if (input.CheckKey('W'))
 	{
 		s_cameraPos.x -= BASIC_CAMERA_SPEED * dt;

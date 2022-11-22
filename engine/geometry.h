@@ -50,7 +50,6 @@ class Geometry
 {
 public:
     virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
-    virtual vector3 GetRandomPointOnEdge() const { return m_mesh.m_vertices[0].pos; }
     // Support: Get further point in this shape in the direction specified (using the transform to world space specified)
     virtual vector3 Support(const vector3& dir, const matrix4& world) const;
 public:
@@ -61,7 +60,6 @@ class SphereGeometry : public Geometry
 {
 public:
     SphereGeometry(float radius);
-    virtual vector3 GetRandomPointOnEdge() const override { return vector3(0.0f,0.0f,m_radius); }
     virtual vector3 Support(const vector3& dir, const matrix4& world) const override;
 public:
     const float m_radius;

@@ -1,15 +1,16 @@
 #pragma once
 
+#include <vector>
+
 struct SimplexPoint
 {
+	vector3 p;
 	vector3 A;
 	vector3 B;
-	vector3 p;
-	float u;
+	float edgeWeight;
 };
 struct Simplex
 {
-	SimplexPoint verts[4];
-	int count;
-	float divisor;
+	std::vector<SimplexPoint> verts;
+	int size() const { return (int)verts.size(); }
 };

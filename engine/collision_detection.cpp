@@ -15,620 +15,457 @@
 // https://ora.ox.ac.uk/objects/uuid:69c743d9-73de-4aff-8e6f-b4dd7c010907/download_file?safe_filename=GJK.PDF&file_format=application%2Fpdf&type_of_work=Journal+article
 
 //******************************************************************************
-static void SolveLine(Simplex& simplex, const vector3& destination)
+static void SolveLine(Simplex& simplex)
 {
     vector3 a = simplex.verts[0].p;
     vector3 b = simplex.verts[1].p;
 
-    vector3 ap = destination - a;
-    vector3 bp = destination - b;
+	// if it is not between A and B, remove the segment it is further from.
+	//           |                      |
+	// region A  |       region AB      |  region B
+	//           A                      B
+	//  r<0      *----------------------*   r>1
+	// remove b  |       keep both      |   remove a
+	//           |                      |
+	float r = ClosestPointLinePointRatio(vector3(), a, b);
+
+    if (r <= 0.0f)
+    {
+		simplex.verts.resize(1);
+        return;
+    }
+    if (r >= 1.0f)
+    {
+        simplex.verts[0] = simplex.verts[1];
+		simplex.verts.resize(1);
+        return;
+    }
+    simplex.verts[1].edgeWeight = r;
+	simplex.verts.resize(2);
+}
+//******************************************************************************
+static void SolveTriangle(Simplex& simplex)
+{
+	const vector3& va = simplex.verts[0].p;
+	const vector3& vb = simplex.verts[1].p;
+	const vector3& vc = simplex.verts[2].p;
+	float u,v;
+	int region = ClosestPointTrianglePointRatio(vector3(), va, vb, vc, u, v);
+	switch (region)
+	{
+		case 0:
+		{
+			// within the triangle
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			return;
+		}
+		case 1:
+		{
+			simplex.verts.resize(1);
+			return;
+		}
+		case 2:
+		{
+			simplex.verts[0] = simplex.verts[1];
+			simplex.verts.resize(1);
+			return;
+		}
+		case 3:
+		{
+			simplex.verts[0] = simplex.verts[2];
+			simplex.verts.resize(1);
+			return;
+		}
+		case 4:
+		{
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 5:
+		{
+			simplex.verts[1] = simplex.verts[2];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		// cases 6,7,8 are edge-cases where the origin falls on one of the lines
+		// of the triangle... remove one of the edge points and recompute our uvs
+		case 6:
+		{
+			// its on AB, remove B
+			simplex.verts[1] = simplex.verts[2];
+			SolveLine(simplex);
+			return;
+		}
+		case 7:
+		{
+			// its on AC, implicitly remove C
+			SolveLine(simplex);
+			return;
+		}
+		case 8:
+		{
+			// its on BC, implicitly remove C
+			SolveLine(simplex);
+			return;
+		}
+		default: assert(false);
+	}
+	assert(false);
+}
+
+//******************************************************************************
+static void SolveTetrahedron(Simplex& simplex)
+{
+	const vector3& va = simplex.verts[0].p;
+	const vector3& vb = simplex.verts[1].p;
+	const vector3& vc = simplex.verts[2].p;
+	const vector3& vd = simplex.verts[3].p;
+
+	float u,v,w;
+	int region = ClosestPointTetrahedronPointRatio(vector3(), va, vb, vc, vd, u, v, w);
+
+	switch (region)
+	{
+		case 0:
+		{
+			// within the tetrahedron
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			simplex.verts[3].edgeWeight = w;
+			return;
+		}
+		case 1:
+		{
+			// region A
+			simplex.verts.resize(1);
+			return;
+		}
+		case 2:
+		{
+			// region B
+			simplex.verts[0] = simplex.verts[1];
+			simplex.verts.resize(1);
+			return;
+		}
+		case 3:
+		{
+			// region C
+			simplex.verts[0] = simplex.verts[2];
+			simplex.verts.resize(1);
+			return;
+		}
+		case 4:
+		{
+			simplex.verts[0] = simplex.verts[3];
+			simplex.verts.resize(1);
+			return;
+		}
+		case 5:
+		{
+			// region AB
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 6:
+		{
+			// region AC
+			simplex.verts[1] = simplex.verts[2];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 7:
+		{
+			// region AD
+			simplex.verts[1] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 8:
+		{
+			// region BC
+			simplex.verts[0] = simplex.verts[1];
+			simplex.verts[1] = simplex.verts[2];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 9:
+		{
+			// region BD
+			simplex.verts[0] = simplex.verts[1];
+			simplex.verts[1] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 10:
+		{
+			// region CD
+			simplex.verts[0] = simplex.verts[2];
+			simplex.verts[1] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts.resize(2);
+			return;
+		}
+		case 11:
+		{
+			// region ABC
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			simplex.verts.resize(3);
+			return;
+		}
+		case 12:
+		{
+			// region ABD
+			simplex.verts[2] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			simplex.verts.resize(3);
+			return;
+		}
+		case 13:
+		{
+			// region ACD
+			simplex.verts[1] = simplex.verts[2];
+			simplex.verts[2] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			simplex.verts.resize(3);
+			return;
+		}
+		case 14:
+		{
+			// region BCD
+			simplex.verts[0] = simplex.verts[1];
+			simplex.verts[1] = simplex.verts[2];
+			simplex.verts[2] = simplex.verts[3];
+			simplex.verts[1].edgeWeight = u;
+			simplex.verts[2].edgeWeight = v;
+			simplex.verts.resize(3);
+			return;
+		}
+		default: assert(false);
+	}
+
+	assert(false);
+}
+//******************************************************************************
+vector3 GetDirectionToOrigin(const vector3& a)
+{
+	return -a;
+}
+//******************************************************************************
+vector3 GetDirectionToOrigin(const vector3& a, const vector3& b)
+{
+	vector3 ab = b - a;
+	vector3 ao = -b;
+	vector3 t = ab.cross(ao);
+	vector3 bt = t.cross(ab);
+	float sign = bt.dot(ao);
+	if (FloatEquals(sign, 0.0f))
+	{
+		// the origin lies on the line ab
+		vector3 abt = ab.cross({ 0,0,1 });
+		if (abt.magnitude_sq() == 0.0f)
+		{
+			// another edge case... ab happens to have no Z component
+			return ab.cross({ 0,1,0 });
+		}
+		return abt;
+	}
+	else if (sign < 0.0f)
+	{
+		return -bt;
+	}
+
+	return bt;
+}
+//******************************************************************************
+vector3 GetDirectionToOrigin(const vector3& a, const vector3& b, const vector3& c)
+{
     vector3 ab = b - a;
-    vector3 ba = a - b;
-
-    float u = bp.dot(ba);
-    float v = ap.dot(ab);
-
-    // if it is not between A and B, remove the segment it is further from.
-    //           |                      |
-    // region A  |       region AB      |  region B
-    //           A                      B
-    //  v<0      *----------------------*   u<0
-    // remove b  |       keep both      |   remove a
-    //           |                      |
-    if (v <= 0.0f)
-    {
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-    if (u <= 0.0f)
-    {
-        simplex.verts[0] = simplex.verts[1];
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-    simplex.verts[0].u = u;
-    simplex.verts[1].u = v;
-    simplex.divisor = ab.magnitude_sq();
-    simplex.count = 2;
-}
-//******************************************************************************
-static void SolveTriangle(Simplex& simplex, const vector3& destination)
-{
-    // there are 7 regions to consider:
-    // point regions: a,b,c
-    //  - the destination is further towards one point than the other two
-    // edge regions: AB, AC, BC
-    //  - the destination is further towards an edge than the other point
-    // triangle region: ABC
-    //  - the destination is within the triangle
-    // 
-    //                 \region A /
-    //                  \       /
-    //                   \     /
-    //                    \   /
-    //                     \ / A
-    //                      *                   
-    //         region AC   / \       region AB
-    //                    /   \
-    //                   /     \
-    //                  /       \
-    //                 /         \
-    //                / region ABC\
-    //               /             \
-    // -------------*---------------*--------------
-    //             / C              B\
-    //   region C /    region BC      \ region B
-    //           /                     \
-    //          /                       \
-    //
- 
-	vector3 a = simplex.verts[0].p;
-	vector3 b = simplex.verts[1].p;
-	vector3 c = simplex.verts[2].p;
-
-	vector3 ao = destination - a;
-	vector3 bo = destination - b;
-	vector3 co = destination - c;
-	vector3 ab = b - a;
-	vector3 ac = c - a;
-	vector3 ba = a - b;
-	vector3 bc = c - b;
-	vector3 ca = a - c;
-	vector3 cb = b - c;
-
-    // for each line segment, compute the dot to destination
-    // see if destination is above or below each segment
-    float uAB = bo.dot(ba);
-	float vAB = ao.dot(ab);
-
-    float uBC = co.dot(cb);
-    float vBC = bo.dot(bc);
-
-    float uCA = ao.dot(ac);
-    float vCA = co.dot(ca);
-    if (vAB <= 0.0f && uCA <= 0.0f)
-    {
-        // region A
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-    if (uAB <= 0.0f && vBC <= 0.0f)
-    {
-        // region B
-        simplex.verts[0] = simplex.verts[1];
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-    if (vCA <= 0.0f && uBC <= 0.0f)
-    {
-        // region C
-		simplex.verts[0] = simplex.verts[2];
-		simplex.verts[0].u = 1.0f;
-		simplex.divisor = 1.0f;
-		simplex.count = 1;
-		return;
-    }
-
-    // must be in region AB,AC,BC, or ABC
-
-    // compute the signed triangle area
-    //     Signed means that the area is positive if the vertices of the triangle 
-    //     are counterclockwise, negative if the vertices are clockwise and 
-    //     zero if the points are collinear
+    vector3 ac = c - a;
+    vector3 ao = -a;
     vector3 n = ab.cross(ac);
+    float sign = n.dot(ao);
+	assert(!FloatEquals(sign, 0.0f)); // todo: implement this case... the origin lies on the triangle
+	if (sign < 0.0f)
+	{
+		return -n;
+	}
 
-    // compare with the signed area of each edge going to the destination
-    // if the signs match, then they must be in the same orientation
-    // (clockwise/counterclockwise)
-    float uABC = vector3::triple_product(b, c, n);
-    float vABC = vector3::triple_product(c, a, n);
-    float wABC = vector3::triple_product(a, b, n);
-
-    if (uAB > 0.0f && vAB > 0.0f && wABC <= 0.0f)
-    {
-        // region AB
-        simplex.verts[0].u = uAB;
-        simplex.verts[1].u = vAB;
-        simplex.divisor = ab.magnitude_sq();
-        simplex.count = 2;
-        return;
-    }
-
-    if (uBC > 0.0f && vBC > 0.0f && uABC <= 0.0f)
-    {
-        // region BC
-        simplex.verts[0] = simplex.verts[1]; // 1st->b
-        simplex.verts[1] = simplex.verts[2]; // 2nd->c
-        simplex.verts[0].u = uBC;
-        simplex.verts[0].u = vBC;
-        simplex.divisor = bc.magnitude_sq();
-        simplex.count = 2;
-        return;
-    }
-
-    if (uCA > 0.0f && vCA > 0.0f && vABC <= 0.0f)
-    {
-        simplex.verts[1] = simplex.verts[0]; // 2nd->a
-        simplex.verts[0] = simplex.verts[2]; // 1st->c
-        simplex.verts[0].u = uCA;
-        simplex.verts[1].u = vCA;
-        simplex.divisor = ca.magnitude_sq();
-        simplex.count = 2;
-        return;
-    }
-
-    // great, we're in region ABC, lets continue the simplex
-    assert(wABC > 0.0f && vABC > 0.0f && uABC > 0.0f);
-    simplex.verts[0].u = uABC;
-    simplex.verts[1].u = vABC;
-    simplex.verts[2].u = wABC;
-    simplex.divisor = n.magnitude_sq();
-    simplex.count = 3;
+	return -n;
 }
 //******************************************************************************
-static void SolveTetrahedron(Simplex& simplex, const vector3& destination)
+vector3 GetSearchDirection(const Simplex& simplex)
 {
-    // 15 regions to consider:
-    // 4 point regions: a,b,c,d 
-    //   - the destination point is further towards a single point than any other
-    // 6 edge regions: ab, ac, ad, bc, bd, cd
-    //   - the destination point is further towards an edge than the other two points
-    // 4 triangle regions: abc, abd, acd, bcd
-    //  - the destination point is further towards a triangle than the remaining point
-    // 1 tetrahedron region: abcd
-    //  - the destination point is within the tetrahedron
-
-	vector3 a = simplex.verts[0].p;
-	vector3 b = simplex.verts[1].p;
-	vector3 c = simplex.verts[2].p;
-	vector3 d = simplex.verts[3].p;
-
-	vector3 ap = destination - a;
-	vector3 bp = destination - b;
-	vector3 cp = destination - c;
-	vector3 dp = destination - d;
-
-	vector3 ab = b - a;
-	vector3 ac = c - a;
-    vector3 ad = d - a;
-
-	vector3 ba = a - b;
-	vector3 bc = c - b;
-    vector3 bd = d - b;
-
-	vector3 ca = a - c;
-	vector3 cb = b - c;
-    vector3 cd = d - c;
-
-	vector3 da = a - d;
-	vector3 db = b - d;
-    vector3 dc = c - d;
-
-
-	float uAB = bp.dot(ba);
-	float vAB = ap.dot(ab);
-
-	float uBC = cp.dot(cb);
-	float vBC = bp.dot(bc);
-
-	float uCA = ap.dot(ac);
-	float vCA = cp.dot(ca);
-
-    float uAD = dp.dot(da);
-    float vAD = ap.dot(ad);
-
-    float uDC = dp.dot(cd);
-    float vDC = cp.dot(dc);
-
-    float uBD = dp.dot(db);
-    float vBD = bp.dot(bd);
-
-    // point regions: A,B,C,D - is it further towards one point than any others?
-    //   if so, remove other points  
-    if (vAB <= 0.0f && uCA <= 0.0f && vAD <= 0.0f)
-    {
-        // region A
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-
-    if (uAB <= 0.0f && vBC <= 0.0f && vBD <= 0.0f)
-    {
-        // region B
-        simplex.verts[0] = simplex.verts[1];
-        simplex.verts[0].u = 1.0f;
-        simplex.divisor = 1.0f;
-        simplex.count = 1;
-        return;
-    }
-
-    if (uCA <= 0.0f && vBC <= 0.0f && vDC <= 0.0f)
-    {
-        // region c
-		simplex.verts[0] = simplex.verts[2];
-		simplex.verts[0].u = 1.0f;
-		simplex.divisor = 1.0f;
-		simplex.count = 1;
-		return;
-    }
-
-    if (uBD <= 0.0f && vDC <= 0.0f && uAD <= 0.0f)
-    {
-        // region D
-		simplex.verts[0] = simplex.verts[3];
-		simplex.verts[0].u = 1.0f;
-		simplex.divisor = 1.0f;
-		simplex.count = 1;
-		return;
-    }
-	//  there are four triangles:
-    //
-    //     A        A        D        B                                      
-    //     *        *        *        *                                
-    //    / \      / \      / \      / \                                 
-    //   *---*    *---*    *---*    *---*                                          
-    //   B   C    C   D    B   A    D   C                           
-    //
-    //  ABC, ACD, DBA, BDC
-    // 
-    // and six edges:
-    // edge regions: AB, AC, AD, CB, CD, BD
-
-    // to calculate if we're in an edge region, we repeat the same process for each edge:
-    // 1.) check to see if its within the line segment
-    //     for example: for edge AB we'd see if uAB and vAB are both positive
-    //     this would mean a projection onto AB from A->destination and BA from B->destination
-    // 2.) check to see if the path going in both directions (a->b and b->a for example) of the edge 
-    //     to the normals of the triangles they are on is in a counter-clockwise direction
-    //     for example: a->b->normal(ABC) and b->a->normal(DBA)
-    // 
-    //     if it violates both of these (outside the triangles the edge is attached to) it must be
-    //     in this edge region
-
-	vector3 nABC = ab.cross(ac);
-	float uABC = vector3::triple_product(b, c, nABC);
-	float vABC = vector3::triple_product(c, a, nABC);
-	float wABC = vector3::triple_product(a, b, nABC);
-
-	vector3 nACD = ac.cross(ad);
-	float uACD = vector3::triple_product(c, d, nACD);
-	float vACD = vector3::triple_product(d, a, nACD);
-	float wACD = vector3::triple_product(a, c, nACD);
-
-	vector3 nDBA = db.cross(da);
-	float uDBA = vector3::triple_product(b, a, nDBA);
-	float vDBA = vector3::triple_product(a, d, nDBA);
-	float wDBA = vector3::triple_product(d, b, nDBA);
-
-	vector3 nBDC = bd.cross(bc);
-	float uBDC = vector3::triple_product(d, c, nBDC);
-	float vBDC = vector3::triple_product(c, b, nBDC);
-	float wBDC = vector3::triple_product(b, d, nBDC);
-
-    // region AB
-    if (uAB > 0.0f && vAB > 0.0f && wABC <= 0.0f && uDBA <= 0.0f)
-    {
-        simplex.verts[0].u = uAB;
-        simplex.verts[1].u = vAB;
-        simplex.divisor = ab.magnitude_sq();
-        simplex.count = 2;
-        return;
-    }
-
-    // region AC
-    if (uCA > 0.0f && vCA > 0.0f && vABC <= 0.0f && wACD <= 0.0f)
-    {
-		simplex.verts[1] = simplex.verts[0]; // 2nd->a
-		simplex.verts[0] = simplex.verts[2]; // 1st->c
-        simplex.verts[0].u = uCA;
-        simplex.verts[1].u = vCA;
-		simplex.divisor = ca.magnitude_sq();
-		simplex.count = 2;
-		return;
-    }
-
-    // region AD
-    if (uAD > 0.0f && vAD > 0.0f && vACD <= 0.0f && vDBA <= 0.0f)
-    {
-		simplex.verts[1] = simplex.verts[3]; // 2nd->d
-		simplex.verts[0].u = uAD;
-		simplex.verts[1].u = vAD;
-		simplex.divisor = ad.magnitude_sq();
-		simplex.count = 2;
-		return;
-    }
-
-    // region CB
-    if (uBC > 0.0f && vBC > 0.0f && uABC <= 0.0f && vBDC <= 0.0f)
-    {
-		simplex.verts[0] = simplex.verts[1]; // 1st->b
-		simplex.verts[1] = simplex.verts[2]; // 2nd->c
-		simplex.verts[0].u = uBC;
-		simplex.verts[1].u = vBC;
-		simplex.divisor = bc.magnitude_sq();
-		simplex.count = 2;
-		return;
-    }
-
-    // region CD
-    if (uDC > 0.0f && vDC > 0.0f && uBDC <= 0.0f && uACD <= 0.0f)
-    {
-		simplex.verts[0] = simplex.verts[3]; // 1st->d
-		simplex.verts[1] = simplex.verts[2]; // 2nd->c
-		simplex.verts[0].u = uDC;
-		simplex.verts[1].u = vDC;
-		simplex.divisor = dc.magnitude_sq();
-		simplex.count = 2;
-		return;
-    }
-
-    // region BD
-    if (uBD > 0.0f && vBD > 0.0f && wDBA <= 0.0f && wBDC <= 0.0f)
-    {
-		simplex.verts[0] = simplex.verts[1]; // 1st->b
-		simplex.verts[1] = simplex.verts[3]; // 2nd->d
-		simplex.verts[0].u = uBD;
-		simplex.verts[1].u = vBD;
-		simplex.divisor = bd.magnitude_sq();
-		simplex.count = 2;
-		return;
-    }
-
-    // triangle region: 
-	//  there are four triangles:
-	//
-	//     A        A        D        B                                      
-	//     *        *        *        *                                
-	//    / \      / \      / \      / \                                 
-	//   *---*    *---*    *---*    *---*                                          
-	//   B   C    C   D    B   A    D   C                           
-	//
-	//  ABC, ACD, DBA, BDC
-    // 
-
-    float aABCD = vector3::triple_product(bc, ba, bd);
-    float uABCD = vector3::triple_product(b, d, c);
-	float vABCD = vector3::triple_product(a, c, d);
-	float wABCD = vector3::triple_product(d, b, a);
-	float xABCD = vector3::triple_product(a, b, c);
-
-    // region ABC
-	if (xABCD <= 0.0f && uABC > 0.0f && vABC > 0.0f && wABC > 0.0f)
+	switch (simplex.size())
 	{
-		simplex.verts[0].u = uABC;
-		simplex.verts[1].u = vABC;
-		simplex.verts[2].u = wABC;
-		simplex.divisor = nABC.magnitude_sq();
-		assert(FloatEquals(uABC + vABC + wABC, nABC.magnitude_sq()));
-		simplex.count = 3;
-		return;
+		case 1: return GetDirectionToOrigin(simplex.verts[0].p);
+		case 2: return GetDirectionToOrigin(simplex.verts[0].p, simplex.verts[1].p);
+		case 3: return GetDirectionToOrigin(simplex.verts[0].p, simplex.verts[1].p, simplex.verts[2].p);
 	}
-
-	// region ACD
-	if (vABCD <= 0.0f && uACD > 0.0f && vACD > 0.0f && wACD > 0.0f)
-	{
-		simplex.verts[1] = simplex.verts[2]; // 2nd->c
-		simplex.verts[2] = simplex.verts[3]; // 3rd->d
-		simplex.verts[0].u = uACD;
-		simplex.verts[1].u = vACD;
-		simplex.verts[2].u = wACD;
-		simplex.divisor = nACD.magnitude_sq();
-		assert(FloatEquals(uACD + vACD + wACD, nACD.magnitude_sq()));
-		simplex.count = 3;
-		return;
-	}
-
-	// region DBA
-	if (wABCD <= 0.0f && uDBA > 0.0f && vDBA > 0.0f && wDBA > 0.0f)
-	{
-		simplex.verts[2] = simplex.verts[0]; // 3rd->a
-		simplex.verts[0] = simplex.verts[3]; // 1st->d
-		simplex.verts[0].u = uDBA;
-		simplex.verts[1].u = vDBA;
-		simplex.verts[2].u = wDBA;
-		simplex.divisor = nDBA.magnitude_sq();
-		assert(FloatEquals(uDBA + vDBA + wDBA, nDBA.magnitude_sq()));
-		simplex.count = 3;
-		return;
-	}
-
-    // region BDC
-    if (uABCD <= 0.0f && uBDC > 0.0f && vBDC > 0.0f && wBDC > 0.0f)
-    {
-        simplex.verts[0] = simplex.verts[1]; // 1st->b
-        simplex.verts[1] = simplex.verts[3]; // 2nd->d
-        simplex.verts[2] = simplex.verts[2]; // 3rd->c
-        simplex.verts[0].u = uBDC;
-        simplex.verts[1].u = vBDC;
-        simplex.verts[2].u = wBDC;
-        simplex.divisor = nBDC.magnitude_sq();
-        assert(FloatEquals(uBDC + vBDC + wBDC, nBDC.magnitude_sq()));
-        simplex.count = 3;
-        return;
-    }
-
-	// otherwise, we must be inside ABCD
-    assert(uABCD > 0.0f && vABCD > 0.0f && wABCD > 0.0f && xABCD > 0.0f);
-    simplex.verts[0].u = uABCD;
-    simplex.verts[1].u = vABCD;
-    simplex.verts[2].u = wABCD;
-    simplex.verts[3].u = xABCD;
-    simplex.divisor = aABCD;
-	//assert(FloatEquals(uABCD + vABCD + wABCD + xABCD, aABCD));
-    simplex.count = 4;
-}
-//******************************************************************************
-vector3 GetSearchDirection(const Simplex& simplex, const vector3& destination)
-{
-    if (simplex.count == 1)
-    {
-        return destination - simplex.verts[0].p;
-    }
-    else if (simplex.count == 2)
-    {
-        const vector3& a = simplex.verts[0].p;
-        const vector3& b = simplex.verts[1].p;
-        vector3 ab = b - a;
-        vector3 ao = destination - b;
-        vector3 t = ab.cross(ao);
-        vector3 bt = t.cross(ab);
-        float sign = bt.dot(ao);
-        if (sign > 0.0f)
-        {
-            return bt;
-        }
-        else
-        {
-            return -bt;
-        }
-    }
-    else if (simplex.count == 3)
-    {
-        const vector3& a = simplex.verts[0].p;
-        const vector3& b = simplex.verts[1].p;
-        const vector3& c = simplex.verts[2].p;
-        vector3 ab = b - a;
-        vector3 ac = c - a;
-        vector3 ao = destination - a;
-        vector3 n = ab.cross(ac);
-        float sign = n.dot(ao);
-        if (sign > 0.0f)
-		{
-			return n;
-		}
-		else
-		{
-			return -n;
-		}
-    }
-
 	assert(false);
 	return vector3();
 }
 //******************************************************************************
-void GetWitnessPoints(const Simplex& s, vector3& outA, vector3& outB)
-{
-    switch (s.count)
-    {
-        case 1:
-        {
-            outA = s.verts[0].A;
-            outB = s.verts[0].B;
-        }
-        break;
-
-        case 2:
-        {
-            float t = 1.0f / s.divisor;
-            outA = s.verts[0].A * (t * s.verts[0].u) + s.verts[1].A * (t * s.verts[1].u);
-            outB = s.verts[0].B * (t * s.verts[0].u) + s.verts[1].B * (t * s.verts[1].u);
-        }
-        break;
- 
-        case 3:
-        {
-			float t = 1.0f / s.divisor;
-			outA = s.verts[0].A * (t * s.verts[0].u) + s.verts[1].A * (t * s.verts[1].u) + s.verts[2].A * (t * s.verts[2].u);
-			outB = s.verts[0].B * (t * s.verts[0].u) + s.verts[1].B * (t * s.verts[1].u) + s.verts[2].B * (t * s.verts[2].u);
-        }
-        break;
-
-        case 4:
-        {
-			float t = 1.0f / s.divisor;
-			outA = s.verts[0].A * (t * s.verts[0].u) + s.verts[1].A * (t * s.verts[1].u) + s.verts[2].A * (t * s.verts[2].u) + s.verts[3].A * (t * s.verts[3].u);
-			outB = s.verts[0].B * (t * s.verts[0].u) + s.verts[1].B * (t * s.verts[1].u) + s.verts[2].B * (t * s.verts[2].u) + s.verts[3].B * (t * s.verts[3].u);
-        }
-        break;
-
-        default: assert(false); break;
-    }
-}
-//******************************************************************************
-COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, Simplex& simplex, const vector3& destination)
+COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, Simplex& simplex)
 {
 	Simplex save = simplex;
-	switch (simplex.count)
+	switch (simplex.size())
 	{
 		case 1:
 			break;
 
 		case 2:
-			SolveLine(simplex, destination);
+			SolveLine(simplex);
 			break;
 
 		case 3:
-			SolveTriangle(simplex, destination);
+			SolveTriangle(simplex);
 			break;
 
 		case 4:
-			SolveTetrahedron(simplex, destination);
+			SolveTetrahedron(simplex);
 			break;
 
 		default:
 			assert(false);
 	}
 
-	if (simplex.count == 4)
+	if (simplex.size() == 4 || (!params.solve3D && simplex.size() == 3))
 	{
 		return COLLISION_RESULT_OVERLAP; // done
 	}
 
-	vector3 d = GetSearchDirection(simplex, destination);
+	vector3 d = GetSearchDirection(simplex);
 	if (FloatEquals(d.magnitude_sq(), 0.0f))
 	{
 		return COLLISION_RESULT_NO_OVERLAP;
 	}
 
-	vector3 a_support = params.a->Support(-d, params.aTransform);
-	vector3 b_support = params.b->Support(d, params.bTransform);
-	vector3 support = b_support - a_support;
+	vector3 a_support = params.a->Support(d, params.aTransform);
+	vector3 b_support = params.b->Support(-d, params.bTransform);
+	vector3 support = a_support - b_support;
 	if (d.dot(support) < 0)
 	{
 		return COLLISION_RESULT_NO_OVERLAP;
 	}
-	for (int i = 0; i < save.count; ++i)
+	for (int i = 0; i < save.size(); ++i)
 	{
-		if (a_support == simplex.verts[i].A && b_support == simplex.verts[i].B)
+		if (a_support == save.verts[i].A && b_support == save.verts[i].B)
 		{
 			return COLLISION_RESULT_NO_OVERLAP;
 		}
 	}
-	simplex.verts[simplex.count].A = a_support;
-	simplex.verts[simplex.count].B = b_support;
-	simplex.verts[simplex.count].p = support;
-	simplex.count++;
+	SimplexPoint p;
+	p.A = a_support;
+	p.B = b_support;
+	p.p = support;
+	simplex.verts.push_back(p);
     return COLLISION_RESULT_CONTINUE;
+}
+
+//******************************************************************************
+bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, float& outDepth, vector3& outA, vector3& outB, vector3& outp)
+{
+	const vector3 origin;
+	outDepth = FLT_MAX;
+	int shortestIndex[2];
+	//float bestT2 = 0.0f;
+	float bestU = FLT_MAX;
+	float bestV = 0.0f;
+	for (int i = 0; i < simplex.verts.size(); i++)
+	{
+		int startIndex = i;
+		int endIndex = i == simplex.verts.size() - 1 ? 0 : i + 1;
+		const vector3& a = simplex.verts[startIndex].p;
+		const vector3& b = simplex.verts[endIndex].p;
+
+		vector3 ab = b - a;
+		// the amount of scalar to apply to the direction to intersect with the line ab
+		vector3 t = params.aDir.cross(ab);
+		if(t.IsNone())
+			continue;
+
+		float u = a.cross(ab).magnitude() / t.magnitude();
+		if (u < 0.0f)
+			continue;
+
+		if (u < bestU)
+		{
+			bestU = u;
+			shortestIndex[0] = startIndex;
+			shortestIndex[1] = endIndex;
+			bestV = (-a).cross(params.aDir).magnitude() / ab.cross(params.aDir).magnitude();
+		}
+	}
+	assert(bestU != FLT_MAX);
+	const vector3& a = simplex.verts[shortestIndex[0]].p;
+	const vector3& b = simplex.verts[shortestIndex[1]].p;
+	vector3 d = params.aDir;
+	vector3 a_support = params.a->Support(d, params.aTransform);
+	vector3 b_support = params.b->Support(-d, params.bTransform);
+	vector3 support = a_support - b_support;
+	const float TOLERANCE = 0.01f;
+	const bool matchesA = fabsf(support.x - a.x) < TOLERANCE && fabsf(support.y - a.y) < TOLERANCE && fabsf(support.z - a.z) < TOLERANCE;
+	const bool matchesB = fabsf(support.x - b.x) < TOLERANCE && fabsf(support.y - b.y) < TOLERANCE && fabsf(support.z - b.z) < TOLERANCE;
+	if (matchesA || matchesB)
+	{
+		outA = simplex.verts[shortestIndex[0]].A + (simplex.verts[shortestIndex[1]].A - simplex.verts[shortestIndex[0]].A) * bestV;
+		outB = simplex.verts[shortestIndex[0]].B + (simplex.verts[shortestIndex[1]].B - simplex.verts[shortestIndex[0]].B) * bestV;
+		outp = simplex.verts[shortestIndex[0]].p + (simplex.verts[shortestIndex[1]].p - simplex.verts[shortestIndex[0]].p) * bestV;
+		outDepth = bestU / (params.aDir.magnitude());
+		return true;
+	}
+
+	// insert the new point in between the two points we found
+	int numVerts = (int)simplex.verts.size();
+	simplex.verts.resize(numVerts + 1);
+	if (shortestIndex[1] == 0)
+	{
+		simplex.verts[numVerts].A = a_support;
+		simplex.verts[numVerts].B = b_support;
+		simplex.verts[numVerts].p = support;
+	}
+	else
+	{
+		for (int i = numVerts; i > shortestIndex[1]; --i)
+		{
+			simplex.verts[i] = simplex.verts[i - 1];
+		}
+		simplex.verts[shortestIndex[1]].A = a_support;
+		simplex.verts[shortestIndex[1]].B = b_support;
+		simplex.verts[shortestIndex[1]].p = support;
+	}
+	return false;
+}
+//******************************************************************************
+bool FindCollisionDepth(const CollisionParams& params, Simplex& simplex, float& depth, vector3& a, vector3& b)
+{
+	// the input is a simplex which encloses the origin
+	// we need to find the minimum distance from the origin to the surrounding hull
+	// of the minkowski difference.  we have not computed the whole minkowski difference
+	// however (nor can we with continuous shapes)... so we iterate until we get close enough
+
+	bool success = false;
+	vector3 p;
+	int iterCount = 0;
+	while (iterCount < 20)
+	{
+		if (FindCollisionDepthStep(params, simplex, depth, a, b, p))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 //******************************************************************************
@@ -639,10 +476,10 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
     // TODO: broad phase
 
     // start with any point in the geometries
-    simplex.verts[0].A = params.aTransform * params.a->GetRandomPointOnEdge();
-    simplex.verts[0].B = params.bTransform * params.b->GetRandomPointOnEdge();
+	simplex.verts.resize(1);
+    simplex.verts[0].A = params.a->Support({1,1,1}, params.aTransform);
+    simplex.verts[0].B = params.b->Support({-1,-1,-1}, params.bTransform);
     simplex.verts[0].p = simplex.verts[0].B - simplex.verts[0].A;
-    simplex.count = 1;
 
     const vector3& destination = {0.0f, 0.0f, 0.0f}; // origin
     constexpr int maxIterations = 20;
@@ -650,7 +487,7 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
     COLLISION_RESULT result = COLLISION_RESULT_CONTINUE;
     while (result == COLLISION_RESULT_CONTINUE && iterCount++ < maxIterations)
     {
-        result = DetectCollisionStep(params, simplex, destination);
+        result = DetectCollisionStep(params, simplex);
     }
     assert(iterCount < maxIterations); // if we bailed due to iterations... we have undefined collision
     assert(result != COLLISION_RESULT_CONTINUE);
@@ -658,12 +495,12 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
 	if (outCollision)
 	{
 		vector3 pa, pb;
-		GetWitnessPoints(simplex, pa, pb);
+		float depth;
+		outCollision->success = FindCollisionDepth(params, simplex, depth, pa, pb);
 		outCollision->pointA = pa;
 		outCollision->pointB = pb;
 		outCollision->depth = (pb - pa).magnitude();
-		outCollision->planeNormal = { 0.0f,1.0f,0.0f };
-		//outCollision->planeNormal = (pb - pa).cross(up).normalize();
+		outCollision->planeNormal = pa - pb;
 	}
 
     return (result == COLLISION_RESULT_OVERLAP);
