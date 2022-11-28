@@ -122,5 +122,5 @@ enum COLLISION_RESULT
 };
 COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex);
 vector3 GetSearchDirection(const struct Simplex& simplex);
-bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, float& outDepth, vector3& outA, vector3& outB, vector3& outp);
+bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, bool collision, float& depth, vector3& a, vector3& b, vector3& p);
 #endif

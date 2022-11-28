@@ -214,9 +214,15 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 //-------------------------------------------------------------------------------------------------
 vector3 Geometry::Support(const vector3& dir, const matrix4& world) const
 {
+	std::vector<vector3> v = SupportAll(dir, world);
+	return v[0];
+}
+//-------------------------------------------------------------------------------------------------
+std::vector<vector3> Geometry::SupportAll(const vector3& dir, const matrix4& world) const
+{
+    std::vector<vector3> results;
 	// get the position furthest in the direction of geo (modified by world)
 	float dot_product = -std::numeric_limits<float>::infinity();
-	vector3 closestPoint;
 	// todo: do we need to consider all vertices, or can we iteratively solve for the furthest?
     //       possibly we can be given a previous vertex and consider all the edges to that vertex and
     //       return the connected vertex that is furthest in the direction... so we only consider
@@ -224,16 +230,19 @@ vector3 Geometry::Support(const vector3& dir, const matrix4& world) const
 	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
 	{
 		vector3 t = world * m_mesh.m_vertices[i].pos;
-
-		float c = dir.dot(t);
-		if (c >= dot_product)
+   		float c = dir.dot(t);
+        if (FloatEquals(c, dot_product))
+        {
+            results.push_back(t);
+        }
+		else if (c > dot_product)
 		{
 			dot_product = c;
-			closestPoint = t;
+            results.clear();
+            results.push_back(t);
 		}
 	}
-	assert(dot_product != -std::numeric_limits<float>::infinity());
-	return closestPoint;
+	return results;
 }
 //-------------------------------------------------------------------------------------------------
 SphereGeometry::SphereGeometry(float radius)
@@ -242,11 +251,13 @@ SphereGeometry::SphereGeometry(float radius)
 	CreateIcosahadron(radius, 3, &m_mesh);
 }
 //-------------------------------------------------------------------------------------------------
-vector3 SphereGeometry::Support(const vector3& dir, const matrix4& world) const
+std::vector<vector3> SphereGeometry::SupportAll(const vector3& dir, const matrix4& world) const
 {
+    std::vector<vector3> r;
 	vector3 dir_normalized = dir.normalize();
 	vector3 circle_position = dir_normalized * m_radius;
-	return world * circle_position;
+	r.push_back(world * circle_position);
+    return r;
 }
 //-------------------------------------------------------------------------------------------------
 BoxGeometry::BoxGeometry(float width, float depth, float height)

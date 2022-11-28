@@ -372,14 +372,72 @@ COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, Simplex& sim
 	simplex.verts.push_back(p);
     return COLLISION_RESULT_CONTINUE;
 }
-
 //******************************************************************************
-bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, float& outDepth, vector3& outA, vector3& outB, vector3& outp)
+void FindClosestPoints_NoCollision(const CollisionParams& params, Simplex& simplex, float& distance, vector3& outA, vector3& outB, vector3& outp)
+{
+	if (simplex.verts.size() < 2)
+	{
+		distance = 0.0f;
+		outA = outB = outp = vector3();
+		return;
+	}
+
+	const vector3 origin;
+	float bestDistSq = FLT_MAX;
+	int startIndex,endIndex;
+	float bestU = 0.0f;
+	for (int i = 0; i < simplex.verts.size(); i++)
+	{
+		int s = i;
+		int e = i == simplex.verts.size() - 1 ? 0 : i + 1;
+		const vector3& a = simplex.verts[s].p;
+		const vector3& b = simplex.verts[e].p;
+		float u = ClosestPointLinePointRatio(origin, a, b);
+		float distanceSq = (a + (b - a) * u).magnitude_sq();
+		if (distanceSq < bestDistSq)
+		{
+			bestDistSq = distanceSq;
+			startIndex = s;
+			endIndex = e;
+			bestU = u; 
+		}
+	}
+	assert(bestDistSq != FLT_MAX);
+	distance = sqrt(bestDistSq);
+	outA = simplex.verts[startIndex].A + simplex.verts[endIndex].A * bestU;
+	outB = simplex.verts[startIndex].B + simplex.verts[endIndex].B * bestU;
+	outp = simplex.verts[startIndex].p + simplex.verts[endIndex].p * bestU;
+
+}
+//******************************************************************************
+void GetClosestEdgeToOrigin(const Simplex& simplex, float& u, float& v, int& startIndex, int& endIndex)
+{
+	assert(false); // todo
+}
+//******************************************************************************
+// Ray equation: p_ray = o + uD  0 <= u < inf
+//	            a point on a ray is some starting point plus some positive scalar of a direction
+// 
+// Line Equation: p_line = A + v(B-A)   0 <= v <= 1
+//              a point on a line is one of the vertices plus some scalar of the direction between the two, between 0 and 1
+// 
+// Intersection Point: o + uD = A + v(B-A)
+//              (for non-colinear lines) there is some intersection point, see if the u/v are in the acceptable ranges
+// 
+// o + uD = A + v(B-A)
+// (o + uD)cross(D) = (a + v(B-A))cross(D)  -- xD both sides
+// (o)cross(D) + u(D)cross(D) = (A)cross(D) - v(B)cross(D) + v(A)cross(D)  --- DcrossD == 0
+// (o)cross(D) - (A)cross(D) = v(B-A)cross(D)
+// (o-A)cross(D)                            (-A)cross(D)
+// ------------- = v .... for o @ origin =  ------------
+// (B-A)cross(D)                             (B-A)cross(D)
+// 
+// compute v, see if its between 0 and 1, and that will be the point along the line the ray intersects with the line
+//******************************************************************************
+void GetFurthestEdgeInDirection_Collision(const Simplex& simplex, const vector3& dir, float& outU, float& outV, int& startIndex, int& endIndex)
 {
 	const vector3 origin;
-	outDepth = FLT_MAX;
 	int shortestIndex[2];
-	//float bestT2 = 0.0f;
 	float bestU = FLT_MAX;
 	float bestV = 0.0f;
 	for (int i = 0; i < simplex.verts.size(); i++)
@@ -391,8 +449,8 @@ bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, flo
 
 		vector3 ab = b - a;
 		// the amount of scalar to apply to the direction to intersect with the line ab
-		vector3 t = params.aDir.cross(ab);
-		if(t.IsNone())
+		vector3 t = dir.cross(ab);
+		if (t.IsNone())
 			continue;
 
 		float u = a.cross(ab).magnitude() / t.magnitude();
@@ -404,66 +462,96 @@ bool FindCollisionDepthStep(const CollisionParams& params, Simplex& simplex, flo
 			bestU = u;
 			shortestIndex[0] = startIndex;
 			shortestIndex[1] = endIndex;
-			bestV = (-a).cross(params.aDir).magnitude() / ab.cross(params.aDir).magnitude();
+			bestV = (-a).cross(dir).magnitude() / ab.cross(dir).magnitude();
 		}
 	}
 	assert(bestU != FLT_MAX);
-	const vector3& a = simplex.verts[shortestIndex[0]].p;
-	const vector3& b = simplex.verts[shortestIndex[1]].p;
-	vector3 d = params.aDir;
-	vector3 a_support = params.a->Support(d, params.aTransform);
-	vector3 b_support = params.b->Support(-d, params.bTransform);
-	vector3 support = a_support - b_support;
-	const float TOLERANCE = 0.01f;
-	const bool matchesA = fabsf(support.x - a.x) < TOLERANCE && fabsf(support.y - a.y) < TOLERANCE && fabsf(support.z - a.z) < TOLERANCE;
-	const bool matchesB = fabsf(support.x - b.x) < TOLERANCE && fabsf(support.y - b.y) < TOLERANCE && fabsf(support.z - b.z) < TOLERANCE;
-	if (matchesA || matchesB)
+	outU = bestU;
+	outV = bestV;
+	startIndex = shortestIndex[0];
+	endIndex = shortestIndex[1];
+}
+//******************************************************************************
+// Take a simplex which necessarily contains the origin and push its edges out until
+// you get to an exterior hull edge within a certain tolerance, then return that point
+// as the closest point
+//******************************************************************************
+bool FindIntersectionPointsStep_Collision(const CollisionParams& params, Simplex& simplex, float& outDepth, vector3& outA, vector3& outB, vector3& outp)
+{
+	float u, v;
+	int startIndex, endIndex;
+	if (!params.aDir.IsNone())
 	{
-		outA = simplex.verts[shortestIndex[0]].A + (simplex.verts[shortestIndex[1]].A - simplex.verts[shortestIndex[0]].A) * bestV;
-		outB = simplex.verts[shortestIndex[0]].B + (simplex.verts[shortestIndex[1]].B - simplex.verts[shortestIndex[0]].B) * bestV;
-		outp = simplex.verts[shortestIndex[0]].p + (simplex.verts[shortestIndex[1]].p - simplex.verts[shortestIndex[0]].p) * bestV;
-		outDepth = bestU / (params.aDir.magnitude());
-		return true;
-	}
-
-	// insert the new point in between the two points we found
-	int numVerts = (int)simplex.verts.size();
-	simplex.verts.resize(numVerts + 1);
-	if (shortestIndex[1] == 0)
-	{
-		simplex.verts[numVerts].A = a_support;
-		simplex.verts[numVerts].B = b_support;
-		simplex.verts[numVerts].p = support;
+		GetFurthestEdgeInDirection_Collision(simplex, params.aDir, u, v, startIndex, endIndex);
 	}
 	else
 	{
-		for (int i = numVerts; i > shortestIndex[1]; --i)
-		{
-			simplex.verts[i] = simplex.verts[i - 1];
-		}
-		simplex.verts[shortestIndex[1]].A = a_support;
-		simplex.verts[shortestIndex[1]].B = b_support;
-		simplex.verts[shortestIndex[1]].p = support;
+		GetClosestEdgeToOrigin(simplex,u,v,startIndex,endIndex);
 	}
-	return false;
+	const vector3& a = simplex.verts[startIndex].p;
+	const vector3& b = simplex.verts[endIndex].p;
+
+	vector3 d = params.aDir;
+	std::vector<vector3> a_supports = params.a->SupportAll(d, params.aTransform);
+	std::vector<vector3> b_supports = params.b->SupportAll(-d, params.bTransform);
+	constexpr float TOLERANCE = 0.01f;
+	for (auto& sA : a_supports)
+	{
+		for (auto& sB : b_supports)
+		{
+			vector3 support = sA - sB;
+			if (!support.Equals(a, TOLERANCE) && !support.Equals(b, TOLERANCE))
+			{
+				// insert the new point in between the two points we found
+				int numVerts = (int)simplex.verts.size();
+				simplex.verts.resize(numVerts + 1);
+				if (endIndex == 0)
+				{
+					simplex.verts[numVerts].A = sA;
+					simplex.verts[numVerts].B = sB;
+					simplex.verts[numVerts].p = support;
+				}
+				else
+				{
+					for (int i = numVerts; i > endIndex; --i)
+					{
+						simplex.verts[i] = simplex.verts[i - 1];
+					}
+					simplex.verts[endIndex].A = sA;
+					simplex.verts[endIndex].B = sB;
+					simplex.verts[endIndex].p = support;
+				}
+			}
+		}
+	}
+	outA = simplex.verts[startIndex].A + (simplex.verts[endIndex].A - simplex.verts[startIndex].A) * v;
+	outB = simplex.verts[startIndex].B + (simplex.verts[endIndex].B - simplex.verts[startIndex].B) * v;
+	outp = simplex.verts[startIndex].p + (simplex.verts[endIndex].p - simplex.verts[startIndex].p) * v;
+	outDepth = u / (params.aDir.magnitude());
+	return true;
 }
 //******************************************************************************
-bool FindCollisionDepth(const CollisionParams& params, Simplex& simplex, float& depth, vector3& a, vector3& b)
+bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, bool collision, float& depth, vector3& a, vector3& b, vector3& p)
 {
-	// the input is a simplex which encloses the origin
-	// we need to find the minimum distance from the origin to the surrounding hull
-	// of the minkowski difference.  we have not computed the whole minkowski difference
-	// however (nor can we with continuous shapes)... so we iterate until we get close enough
-
-	bool success = false;
-	vector3 p;
-	int iterCount = 0;
-	while (iterCount < 20)
+	if (collision)
 	{
-		if (FindCollisionDepthStep(params, simplex, depth, a, b, p))
+		// the input is a simplex which encloses the origin
+		// we need to find the minimum distance from the origin to the surrounding hull
+		// of the minkowski difference.  we have not computed the whole minkowski difference
+		// however (nor can we with continuous shapes)... so we iterate until we get close enough
+		int iterCount = 0;
+		while (iterCount < 20)
 		{
-			return true;
+			if (FindIntersectionPointsStep_Collision(params, simplex, depth, a, b, p))
+			{
+				return true;
+			}
 		}
+	}
+	else
+	{
+		FindClosestPoints_NoCollision(params, simplex, depth, a, b, p);
+		return true;
 	}
 	return false;
 }
@@ -477,8 +565,8 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
 
     // start with any point in the geometries
 	simplex.verts.resize(1);
-    simplex.verts[0].A = params.a->Support({1,1,1}, params.aTransform);
-    simplex.verts[0].B = params.b->Support({-1,-1,-1}, params.bTransform);
+	simplex.verts[0].A = params.a->Support({1,1,1}, params.aTransform);
+	simplex.verts[0].B = params.b->Support({-1,-1,-1}, params.bTransform);
     simplex.verts[0].p = simplex.verts[0].B - simplex.verts[0].A;
 
     const vector3& destination = {0.0f, 0.0f, 0.0f}; // origin
@@ -491,12 +579,13 @@ bool DetectCollision(const CollisionParams& params, CollisionData* outCollision)
     }
     assert(iterCount < maxIterations); // if we bailed due to iterations... we have undefined collision
     assert(result != COLLISION_RESULT_CONTINUE);
+	const bool overlap = result == COLLISION_RESULT_OVERLAP;
 
 	if (outCollision)
 	{
-		vector3 pa, pb;
+		vector3 pa, pb, p;
 		float depth;
-		outCollision->success = FindCollisionDepth(params, simplex, depth, pa, pb);
+		outCollision->success = FindIntersectionPoints(params, simplex, overlap, depth, pa, pb, p);
 		outCollision->pointA = pa;
 		outCollision->pointB = pb;
 		outCollision->depth = (pb - pa).magnitude();

@@ -57,13 +57,24 @@ static void ProcessInput(float dt)
 
 	if (input.CheckKey('T'))
 	{
-		if (s_result == COLLISION_RESULT_OVERLAP)
+		switch (s_result)
 		{
-			s_collisionFound = FindCollisionDepthStep(s_collisionParams, s_simplex, s_collisionData.depth, s_collisionData.pointA, s_collisionData.pointB, s_collisionDiff);
-		}
-		else
-		{
-			s_result = DetectCollisionStep(s_collisionParams, s_simplex);
+			case COLLISION_RESULT_NONE:
+			case COLLISION_RESULT_CONTINUE:
+			{
+				s_result = DetectCollisionStep(s_collisionParams, s_simplex);
+			}
+			break;
+
+			case COLLISION_RESULT_NO_OVERLAP:
+			case COLLISION_RESULT_OVERLAP:
+			{
+				const bool overlap = s_result == COLLISION_RESULT_OVERLAP;
+				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, overlap, s_collisionData.depth, s_collisionData.pointA, s_collisionData.pointB, s_collisionDiff);
+			}
+			break;
+
+			default: assert(false);
 		}
 	}
 	if (input.CheckKey('W'))

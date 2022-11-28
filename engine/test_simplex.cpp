@@ -73,10 +73,12 @@ static void ProcessInput(float dt)
 					next.searchDirection = GetSearchDirection(next.simplex);
 				}
 				
-				if (next.result != COLLISION_RESULT_CONTINUE)
-				{
-					//GetWitnessPoints(next.simplex, next.witnessPoints[0], next.witnessPoints[1]);
-				}
+			//	if (next.result != COLLISION_RESULT_CONTINUE)
+			//	{
+			//		float depth;
+			//		vector3 p;
+			//		FindCollisionDepthStep(s_collisionParams, next.simplex, depth, next.witnessPoints[0], next.witnessPoints[1], p);
+			//	}
 				s_simplexs.push_back(next);
 			}
 		}

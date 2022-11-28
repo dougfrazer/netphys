@@ -4,7 +4,6 @@
 
 #include <vector>
 
-
 //******************************************************************************
 // Vertex - A single point
 //******************************************************************************
@@ -46,12 +45,14 @@ struct DrawParams
     DrawType drawType = DrawType_Triangles;
 	vector4 color = {1.0f,1.0f,1.0f,1.0f};
 };
+
 class Geometry
 {
 public:
     virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
     // Support: Get further point in this shape in the direction specified (using the transform to world space specified)
-    virtual vector3 Support(const vector3& dir, const matrix4& world) const;
+    virtual std::vector<vector3> SupportAll(const vector3& dir, const matrix4& world) const;
+    vector3 Support(const vector3& dir, const matrix4& world) const;
 public:
 	Mesh m_mesh;
 };
@@ -60,7 +61,7 @@ class SphereGeometry : public Geometry
 {
 public:
     SphereGeometry(float radius);
-    virtual vector3 Support(const vector3& dir, const matrix4& world) const override;
+    virtual std::vector<vector3> SupportAll(const vector3& dir, const matrix4& world) const override;
 public:
     const float m_radius;
 };
