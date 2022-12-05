@@ -251,66 +251,49 @@ void Platform_Run(const PlatformParams& params)
     success = wglMakeCurrent(s_renderDC, glc);
     assert(success == TRUE);
 
-    // TODO: separate render thread?
-    std::thread thread = std::thread([params] {
-        // init some stuff for our draw
-		HGLRC glc = wglCreateContext(s_renderDC);
-		assert(glc != NULL);
-		bool success = wglMakeCurrent(s_renderDC, glc);
-		assert(success == TRUE);
+    auto frameEnd = std::chrono::high_resolution_clock::now();
+    constexpr float MAX_FPS_MS = (1000.f / 60.f);
 
-		auto frameEnd = std::chrono::high_resolution_clock::now();
-		constexpr float MAX_FPS_MS = (1000.f / 60.f);
-		while (s_running)
-		{
-			auto frameStart = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double, std::milli> delta_ms = (frameStart - frameEnd);
-			float dt = min(MAX_FPS_MS, (float)(delta_ms.count())) / 1000.f;
-
-			// Do work
-            if (params.updateCallback)
-            {
-                params.updateCallback(dt);
-            }
-            if (params.drawCallback)
-            {
-                StartDrawFrame();
-                params.drawCallback();
-                SwapBuffers(s_renderDC);
-            }
-                
-			// sleep if necessary
-			frameEnd = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
-			if (frameTime.count() < MAX_FPS_MS)
-			{
-				std::chrono::duration<double, std::milli> delta_ms(MAX_FPS_MS - frameTime.count());
-				auto delta_ms_duration = std::chrono::duration_cast<std::chrono::milliseconds>(delta_ms);
-				std::this_thread::sleep_for(std::chrono::milliseconds(delta_ms_duration.count()));
-			}
-		}
-    });
-
-    MSG msg;
-    while (GetMessage(&msg, window, 0, 0))
+    // TODO: separate threads?
+    while(s_running)
     {
+		auto frameStart = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> delta_ms = (frameStart - frameEnd);
+		float dt = min(MAX_FPS_MS, (float)(delta_ms.count())) / 1000.f;
+        
+        // handle windows messages
+        MSG msg;
+        PeekMessage(&msg, window, 0, 0, PM_REMOVE);
         if (!TranslateAccelerator(window, NULL, &msg))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+		// Do update/render calls
+        if (params.updateCallback)
+        {
+            params.updateCallback(dt);
+        }
+        if (params.drawCallback)
+        {
+            StartDrawFrame();
+            params.drawCallback();
+            SwapBuffers(s_renderDC);
+        }
+                
+		// sleep if necessary
+		frameEnd = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
+		if (frameTime.count() < MAX_FPS_MS)
+		{
+			std::chrono::duration<double, std::milli> delta_ms(MAX_FPS_MS - frameTime.count());
+			auto delta_ms_duration = std::chrono::duration_cast<std::chrono::milliseconds>(delta_ms);
+			std::this_thread::sleep_for(std::chrono::milliseconds(delta_ms_duration.count()));
+		}
     }
 
-    s_running = false;
-    thread.join();
-    //   renderThread.join();
     DestroyWindow(window);
-
-}
-//-------------------------------------------------------------------------------------------------
-bool Platform_IsRunning()
-{
-    return s_running;
 }
 //-------------------------------------------------------------------------------------------------
 Input Platform_ConsumeInput()
