@@ -47,15 +47,12 @@ void ResetSimplex()
 //-------------------------------------------------------------------------------------------------
 static void ProcessInput(float dt)
 {
-	Input input = Platform_ConsumeInput();
-	//Platform_BasicCameraInput(input, dt);
-
-	if (input.CheckKey('Z'))
+	if (Platform_InputChangedDown('Z'))
 	{
 		s_diffView = !s_diffView;
 	}
 
-	if (input.CheckKey('T'))
+	if (Platform_InputChangedDown('T'))
 	{
 		switch (s_result)
 		{
@@ -77,49 +74,47 @@ static void ProcessInput(float dt)
 			default: assert(false);
 		}
 	}
-	if (input.CheckKey('W'))
+	if (Platform_InputChangedDown('W'))
 	{
 		s_boxTransform.translate({ 0, 1, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey('A'))
+	if (Platform_InputChangedDown('A'))
 	{
 		s_boxTransform.translate({ -1, 0, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey('S'))
+	if (Platform_InputChangedDown('S'))
 	{
 		s_boxTransform.translate({ 0, -1, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey('D'))
+	if (Platform_InputChangedDown('D'))
 	{
 		s_boxTransform.translate({ 1, 0, 0 });
 		ResetSimplex();
 	}
 
-	if (input.CheckKey(ARROW_KEY_UP))
+	if (Platform_InputChangedDown(ARROW_KEY_UP))
 	{
 		s_triangleTransform.translate({ 0, 1, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_DOWN))
+	if (Platform_InputChangedDown(ARROW_KEY_DOWN))
 	{
 		s_triangleTransform.translate({ 0, -1, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_LEFT))
+	if (Platform_InputChangedDown(ARROW_KEY_LEFT))
 	{
 		s_triangleTransform.translate({ -1, 0, 0 });
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_RIGHT))
+	if (Platform_InputChangedDown(ARROW_KEY_RIGHT))
 	{
 		s_triangleTransform.translate({ 1, 0, 0 });
 		ResetSimplex();
 	}
-
-
 }
 //-------------------------------------------------------------------------------------------------
 static void Update(float dt)

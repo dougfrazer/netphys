@@ -12,7 +12,87 @@
 #include "lib.h"
 #include "matrix.h"
 
-static Input s_input = { 0 };
+
+struct InputMask
+{
+	union
+	{
+		struct
+		{
+			uint64_t mouse : 3;
+			uint64_t chars : 26;
+			uint64_t numbers : 10;
+			uint64_t arrows : 4;
+
+			// for more inputs just take it off the padding
+			uint64_t padding : 21;
+		};
+
+		uint64_t all_inputs;
+	};
+
+};
+static_assert(sizeof(InputMask) == sizeof(uint64_t), "check bit packing for keys");
+
+struct Input
+{
+	InputMask inputMask;
+	int x;
+	int y;
+
+	void Clear()
+	{
+		inputMask.all_inputs = 0;
+		x = 0;
+		y = 0;
+	}
+
+	bool CheckKey(char key) const
+	{
+		if (key >= '0' && key <= '9')
+		{
+			const int index = key - '0';
+			return (inputMask.numbers & (1ull << index)) > 0;
+		}
+
+		if (key >= 'a' && key <= 'z')
+		{
+			// might just be able to assert and make it so the caller has to pass in either always
+			// the capital char or always the lower case char, but easy enough to support both
+			key = 'A' + key - 'a';
+		}
+
+		if (key >= 'A' && key <= 'Z')
+		{
+			const int index = key - 'A';
+			return (inputMask.chars & (1ull << index)) > 0;
+		}
+
+		assert(false); // key passed in is neither a number or character, need to set up mapping/storage for this key
+		return false;
+	}
+
+	bool CheckKey(SPECIAL_INPUT_KEY key) const
+	{
+		if (key >= MOUSE_INPUT_FIRST && key <= MOUSE_INPUT_LAST)
+		{
+			const int index = key - MOUSE_INPUT_FIRST;
+			return (inputMask.mouse & (1ull << index)) > 0;
+		}
+
+		if (key >= ARROW_INPUT_FIRST && key <= ARROW_INPUT_LAST)
+		{
+			const int index = key - ARROW_INPUT_FIRST;
+			return (inputMask.arrows & (1ull << index)) > 0;
+		}
+
+		assert(false); // key passed in needs mapping
+		return false;
+	}
+};
+
+static Input s_mostRecentInput = { 0 };
+static Input s_lastCheckedInput = { 0 };
 static short s_lastMoveX = 0;
 static short s_lastMoveY = 0;
 static HDC s_renderDC;
@@ -40,15 +120,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             if (msg == WM_LBUTTONDOWN)
             {
-                s_input.mouseInput |= LEFT_BUTTON;
+                s_mostRecentInput.inputMask.mouse |= (1ull << LEFT_MOUSE);
             }
             else if (msg == WM_MBUTTONDOWN)
             {
-                s_input.mouseInput |= MIDDLE_BUTTON;
+                s_mostRecentInput.inputMask.mouse |= (1ull << MIDDLE_MOUSE);
+            }
+            else if(msg == WM_RBUTTONDOWN)
+            {
+                s_mostRecentInput.inputMask.mouse |= (1ull << RIGHT_MOUSE);
             }
             else
             {
-                s_input.mouseInput |= RIGHT_BUTTON;
+                assert(false); // wtf?
             }
             s_lastMoveX = SHORT(LOWORD(lParam));
             s_lastMoveY = SHORT(HIWORD(lParam));
@@ -62,17 +146,22 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             if (msg == WM_LBUTTONUP)
             {
-                s_input.mouseInput &= ~LEFT_BUTTON;
+                s_mostRecentInput.inputMask.mouse &= ~(1ull << LEFT_MOUSE);
             }
             else if (msg == WM_MBUTTONUP)
             {
-                s_input.mouseInput &= ~MIDDLE_BUTTON;
+                s_mostRecentInput.inputMask.mouse &= ~(1ull << MIDDLE_MOUSE);
             }
-            else
+            else if (msg == WM_RBUTTONUP)
             {
-                s_input.mouseInput &= ~RIGHT_BUTTON;
+                s_mostRecentInput.inputMask.mouse &= ~(1ull << RIGHT_MOUSE);
             }
-            if (!s_input.mouseInput)
+			else
+			{
+				assert(false); // wtf?
+			}
+
+            if (!s_mostRecentInput.inputMask.mouse)
             {
                 ReleaseCapture();
             }
@@ -83,45 +172,70 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             int x = LOWORD(lParam);
             int y = HIWORD(lParam);
-            s_input.x += x - s_lastMoveX;
-            s_input.y += y - s_lastMoveY;
+            s_mostRecentInput.x += x - s_lastMoveX;
+            s_mostRecentInput.y += y - s_lastMoveY;
             s_lastMoveX = x;
             s_lastMoveY = y;
         }
         break;
 
-        case WM_CHAR:
-        {
-            // ascii 'a'-'z' is range 97-122, out of the range of our bitmask...
-            // so just translate lower-to-upper here
-			if (wParam >= 'a' && wParam <= 'z')
-			{
-				wParam = 'A' + wParam - 'a';
-			}
-            // constrain the range to fit within the 64 bit bit-mask
-            // currently only captures these ranges of key presses
-
-            // The numbers 48-90 correspond to characters and symbols
-            // this is the '0' char to the 'Z' char
-            if (wParam >= START_CHAR && wParam <= END_CHAR)
-            {
-                s_input.keyInput |= (1ull << (wParam-START_CHAR));
-            }
-            break;
-        }
-
         case WM_KEYDOWN:
         {
-            switch (wParam)
-            {
-				case VK_LEFT:   s_input.keyInput |= (1ull << ((END_CHAR - START_CHAR) + ARROW_KEY_LEFT)); break;
-				case VK_RIGHT:  s_input.keyInput |= (1ull << ((END_CHAR - START_CHAR) + ARROW_KEY_RIGHT)); break;
-				case VK_DOWN:   s_input.keyInput |= (1ull << ((END_CHAR - START_CHAR) + ARROW_KEY_DOWN)); break;
-				case VK_UP:     s_input.keyInput |= (1ull << ((END_CHAR - START_CHAR) + ARROW_KEY_UP)); break;
+			char c = (char)(wParam);
+			assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
+
+			if (c >= 'A' && c <= 'Z')
+			{
+				const int index = c - 'A';
+				s_mostRecentInput.inputMask.chars |= (1ull << index);
+			}
+			else if (c >= '0' && c <= '9')
+			{
+				const int index = c - '0';
+				s_mostRecentInput.inputMask.numbers |= (1ull << index);
+			}
+			else
+			{
+				switch (wParam)
+				{
+				case VK_LEFT:   s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_LEFT  - ARROW_INPUT_FIRST)); break;
+				case VK_RIGHT:  s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_RIGHT - ARROW_INPUT_FIRST)); break;
+				case VK_DOWN:   s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_DOWN  - ARROW_INPUT_FIRST)); break;
+				case VK_UP:     s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_UP    - ARROW_INPUT_FIRST)); break;
 				default: break;
+				}
             }
         }
         break;
+
+		case WM_KEYUP:
+		{
+			char c = (char)(wParam);
+            assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
+
+			if (c >= 'A' && c <= 'Z')
+			{
+				const int index = c - 'A';
+				s_mostRecentInput.inputMask.chars &= ~(1ull << index);
+			}
+			else if (c >= '0' && c <= '9')
+			{
+				const int index = c - '0';
+				s_mostRecentInput.inputMask.numbers &= ~(1ull << index);
+			}
+            else
+            {
+				switch (wParam)
+				{
+				case VK_LEFT:   s_mostRecentInput.inputMask.arrows &= ~(1ull << (ARROW_KEY_LEFT  - ARROW_INPUT_FIRST)); break;
+				case VK_RIGHT:  s_mostRecentInput.inputMask.arrows &= ~(1ull << (ARROW_KEY_RIGHT - ARROW_INPUT_FIRST)); break;
+				case VK_DOWN:   s_mostRecentInput.inputMask.arrows &= ~(1ull << (ARROW_KEY_DOWN  - ARROW_INPUT_FIRST)); break;
+				case VK_UP:     s_mostRecentInput.inputMask.arrows &= ~(1ull << (ARROW_KEY_UP    - ARROW_INPUT_FIRST)); break;
+				default: break;
+				}
+            }
+		}
+		break;
 
         case WM_SIZE:
         {
@@ -170,6 +284,11 @@ static void StartDrawFrame()
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+//-------------------------------------------------------------------------------------------------
+static void EndFrame()
+{
+    s_lastCheckedInput = s_mostRecentInput;
 }
 //-------------------------------------------------------------------------------------------------
 void Platform_Run(const PlatformParams& params)
@@ -281,7 +400,9 @@ void Platform_Run(const PlatformParams& params)
             params.drawCallback();
             SwapBuffers(s_renderDC);
         }
-                
+      
+        EndFrame();
+
 		// sleep if necessary
 		frameEnd = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
@@ -296,14 +417,38 @@ void Platform_Run(const PlatformParams& params)
     DestroyWindow(window);
 }
 //-------------------------------------------------------------------------------------------------
-Input Platform_ConsumeInput()
+bool Platform_InputIsDown(char key)
 {
-    // todo: better handling of press-release-press-release behavior in a single update
-    Input ret = s_input;
-    s_input.keyInput = 0;
-    s_input.x = 0;
-    s_input.y = 0;
-    return ret;
+    return s_mostRecentInput.CheckKey(key);
+}
+//-------------------------------------------------------------------------------------------------
+bool Platform_InputIsDown(SPECIAL_INPUT_KEY key)
+{
+    return s_mostRecentInput.CheckKey(key);
+}
+//-------------------------------------------------------------------------------------------------
+bool Platform_InputChangedDown(char key)
+{
+    if (s_mostRecentInput.CheckKey(key))
+    {
+        if (!s_lastCheckedInput.CheckKey(key))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+//-------------------------------------------------------------------------------------------------
+bool Platform_InputChangedDown(SPECIAL_INPUT_KEY key)
+{
+	if (s_mostRecentInput.CheckKey(key))
+	{
+		if (!s_lastCheckedInput.CheckKey(key))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 //-------------------------------------------------------------------------------------------------
 vector3 Platform_GetCameraPos() { return s_cameraPos; }
@@ -334,46 +479,46 @@ void Platform_ResetCamera()
     s_cameraOrbit = INITIAL_CAMERA_ORBIT;
 }
 //-------------------------------------------------------------------------------------------------
-void Platform_BasicCameraInput(const Input& input, float dt)
+void Platform_BasicCameraInput(float dt)
 {
-	if (input.mouseInput & LEFT_BUTTON)
+	if (Platform_InputIsDown(LEFT_MOUSE))
 	{
-		s_cameraOrbit.y += input.x;
+		s_cameraOrbit.y += s_mostRecentInput.x;
 	}
-	if (input.mouseInput & RIGHT_BUTTON)
+	if (Platform_InputIsDown(RIGHT_MOUSE))
 	{
-		s_cameraOrbit.z += input.y;
+		s_cameraOrbit.z += s_mostRecentInput.y;
 	}
-	if (input.mouseInput & MIDDLE_BUTTON)
+	if (Platform_InputIsDown(MIDDLE_MOUSE))
 	{
-		s_cameraOrbit.x += input.x;
+		s_cameraOrbit.x += s_mostRecentInput.x;
 	}
-	if (input.CheckKey('W'))
+	if (Platform_InputIsDown('W'))
 	{
 		s_cameraPos.x -= BASIC_CAMERA_SPEED * dt;
 		s_cameraLook.x -= BASIC_CAMERA_SPEED * dt;
 	}
-	if (input.CheckKey('A'))
+	if (Platform_InputIsDown('A'))
 	{
 		s_cameraPos.z += BASIC_CAMERA_SPEED * dt;
 		s_cameraLook.z += BASIC_CAMERA_SPEED * dt;
 	}
-	if (input.CheckKey('S'))
+	if (Platform_InputIsDown('S'))
 	{
 		s_cameraPos.x += BASIC_CAMERA_SPEED * dt;
         s_cameraLook.x += BASIC_CAMERA_SPEED * dt;
 	}
-	if (input.CheckKey('D'))
+	if (Platform_InputIsDown('D'))
 	{
 		s_cameraPos.z -= BASIC_CAMERA_SPEED * dt;
 		s_cameraLook.z -= BASIC_CAMERA_SPEED * dt;
 	}
-	if (input.CheckKey('Q'))
+	if (Platform_InputIsDown('Q'))
 	{
 		s_cameraPos.y += BASIC_CAMERA_SPEED * dt;
 		s_cameraLook.y += BASIC_CAMERA_SPEED * dt;
 	}
-	if (input.CheckKey('E'))
+	if (Platform_InputIsDown('E'))
 	{
 		s_cameraPos.y -= BASIC_CAMERA_SPEED * dt;
 		s_cameraLook.y -= BASIC_CAMERA_SPEED * dt;

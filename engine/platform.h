@@ -23,55 +23,31 @@ void Platform_Run(const PlatformParams& fns);
 //-------------------------------------------------------------------------------------------------
 // input functions
 //-------------------------------------------------------------------------------------------------
-enum MOUSE_INPUT
+
+// These are keys we are manually and explicitly mapping
+enum SPECIAL_INPUT_KEY
 {
-    LEFT_BUTTON   = (1 << 0),
-    MIDDLE_BUTTON = (1 << 1),
-    RIGHT_BUTTON  = (1 << 2),
+    LEFT_MOUSE,
+    RIGHT_MOUSE,
+    MIDDLE_MOUSE,
 
-    MOUSE_MOVE    = (1 << 3),
+    MOUSE_INPUT_FIRST = LEFT_MOUSE,
+    MOUSE_INPUT_LAST = MIDDLE_MOUSE,
 
-    NUM_MOUSE_INPUT = 4
-};
-static_assert(NUM_MOUSE_INPUT < 8, "need additional bits for mouse input");
-
-static constexpr int START_CHAR = '0';
-static constexpr int END_CHAR = 'Z';
-
-enum KEY_INPUT
-{
-    ARROW_KEY_LEFT = 1,
+    ARROW_KEY_LEFT,
     ARROW_KEY_RIGHT,
     ARROW_KEY_DOWN,
     ARROW_KEY_UP,
 
-    NUM_KEY_INPUT
-};
-static_assert(NUM_KEY_INPUT + (END_CHAR - START_CHAR) < 64, "Not enough bits to represent key input");
-
-struct Input
-{
-    char mouseInput;
-    uint64_t keyInput;
-    int x;
-    int y;
-
-    bool CheckKey(char key) const { 
-        if (key >= START_CHAR && key <= END_CHAR)
-        {
-            int index = key - START_CHAR;
-            return (keyInput & (1ull << index)) > 0;
-        }
-            
-        return false;
-    }
-    bool CheckKey(KEY_INPUT key) const {
-        int index = key + (END_CHAR - START_CHAR);
-        return (keyInput & (1ull << index)) > 0;
-    }
+    ARROW_INPUT_FIRST = ARROW_KEY_LEFT,
+    ARROW_INPUT_LAST = ARROW_KEY_UP,
 };
 
-Input Platform_ConsumeInput();
+bool Platform_InputIsDown(char key);
+bool Platform_InputIsDown(SPECIAL_INPUT_KEY key);
+bool Platform_InputChangedDown(char key);
+bool Platform_InputChangedDown(SPECIAL_INPUT_KEY key);
+
 //-------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------
@@ -87,4 +63,4 @@ void Platform_SetCameraOrbit(const vector3& orbit);
 
 void Platform_ResetCamera();
 
-void Platform_BasicCameraInput(const Input& input, float dt);
+void Platform_BasicCameraInput(float dt);

@@ -56,10 +56,9 @@ static void ResetSimplex()
 
 static void ProcessInput(float dt)
 {
-	Input input = Platform_ConsumeInput();
-	Platform_BasicCameraInput(input, dt);
+	Platform_BasicCameraInput(dt);
 
-	if (input.CheckKey('T'))
+	if (Platform_InputIsDown('T'))
 	{
 		if (s_simplexs[s_simplexIndex].result != COLLISION_RESULT_NO_OVERLAP)
 		{
@@ -83,41 +82,41 @@ static void ProcessInput(float dt)
 			}
 		}
 	}
-	if (input.CheckKey('G'))
+	if (Platform_InputIsDown('G'))
 	{
 		s_simplexIndex = max(0, s_simplexIndex - 1);
 	}
-	if (input.CheckKey('R'))
+	if (Platform_InputIsDown('R'))
 	{
 		ResetSimplex();
 	}
 
 	// move and rotate object
-	if (input.CheckKey(ARROW_KEY_UP))
+	if (Platform_InputIsDown(ARROW_KEY_UP))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 1.0f, 0.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_DOWN))
+	if (Platform_InputIsDown(ARROW_KEY_DOWN))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, -1.0f, 0.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_LEFT))
+	if (Platform_InputIsDown(ARROW_KEY_LEFT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, 1.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (input.CheckKey(ARROW_KEY_RIGHT))
+	if (Platform_InputIsDown(ARROW_KEY_RIGHT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, -1.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (input.CheckKey('Z'))
+	if (Platform_InputIsDown('Z'))
 	{
 		s_simplexView = !s_simplexView;
 		Platform_ResetCamera();

@@ -25,16 +25,14 @@ static float s_fixedTimestep = 1.f/30.f;
 
 static void ProcessInput(float dt)
 {
-    Input input = Platform_ConsumeInput();
-
-    Platform_BasicCameraInput(input, dt);
+    Platform_BasicCameraInput(dt);
 	
-    if (input.CheckKey('T'))
+    if (Platform_InputIsDown('T'))
 	{
 		Physics_Update(s_fixedTimestep);
 	}
 
-    if (input.CheckKey('P'))
+    if (Platform_InputIsDown('P'))
     {
         s_run = true;
     }
