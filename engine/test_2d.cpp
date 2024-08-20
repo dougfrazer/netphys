@@ -7,6 +7,7 @@
 #include "lib.h"
 #include "simplex.h"
 #include "geometry.h"
+#include "debug_draw.h"
 #include <vector>
 
 #include "windows.h"
@@ -136,7 +137,7 @@ static void GetMinkowskiDifference(vector3* diff)
 	}
 }
 //-------------------------------------------------------------------------------------------------
-static void DrawConvextHull(const vector3* diff)
+static void DrawConvexHull(const vector3* diff)
 {
 	auto orientation = [](const vector3& p, const vector3& q, const vector3& r)
 	{
@@ -186,8 +187,16 @@ static void Draw()
 	glVertex3f(0,0,0);
 	glEnd();
 
+
+	DebugDraw_RemoveAll();
+
+	const int text_height = 24; // internally debugdraw knows this, probalby could make this api better
+
 	if (s_diffView)
 	{
+		DebugDraw_AddString("Minkowski Difference", 0, 0, TEXT_COLOR_WHITE);
+		DebugDraw_AddString("Z - switch views", 0, text_height, TEXT_COLOR_WHITE);
+
 		// draw the minkowski difference w/ convex hull
 		vector3 diff[12];
 		GetMinkowskiDifference(diff);
@@ -198,7 +207,7 @@ static void Draw()
 			glVertex3fv((GLfloat*)&diff[i]);
 		}
 		glEnd();
-		DrawConvextHull(diff);
+		DrawConvexHull(diff);
 	
 		glPointSize(8.0f);
 
@@ -242,6 +251,12 @@ static void Draw()
 	}
 	else
 	{
+		DebugDraw_AddString("Overlapping Shapes", 0, 0, TEXT_COLOR_WHITE);
+		DebugDraw_AddString("WASD - Move shape A", 0, text_height, TEXT_COLOR_WHITE);
+		DebugDraw_AddString("Arrow Keys - Move shape B", 0, text_height * 2, TEXT_COLOR_WHITE);
+		DebugDraw_AddString("T - advance algorithm", 0, text_height * 3, TEXT_COLOR_WHITE);
+		DebugDraw_AddString("Z - switch views", 0, text_height * 4, TEXT_COLOR_WHITE);
+
 		glColor3f(0.0, 1.0f, 0.0f);
 		glBegin(GL_LINE_LOOP);
 		for (int i = 0; i < 3; i++)
@@ -269,6 +284,8 @@ static void Draw()
 			glEnd();
 		}
 	}
+
+	DebugDraw_Render();
 }
 
 //-------------------------------------------------------------------------------------------------
