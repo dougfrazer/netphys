@@ -17,8 +17,7 @@ enum COLLISION_RESPONSE
 };
 struct CollisionData
 {
-    vector3 pointA,pointB;
-    vector3 planeNormal;
+    vector3 penetrationDirection;
     float   depth;
     bool success = false;
 };
@@ -105,8 +104,7 @@ struct CollisionParams
     const Geometry* b;
     matrix4  aTransform;
     matrix4  bTransform;
-    vector3 aDir;
-    // todo: need bDir as well?  both objects can be moving..
+
     bool solve3D = true;
 };
 bool DetectCollision(const CollisionParams& params, CollisionData* outCollision);
@@ -122,5 +120,5 @@ enum COLLISION_RESULT
 };
 COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex);
 vector3 GetSearchDirection(const struct Simplex& simplex);
-bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, bool collision, float& depth, vector3& a, vector3& b, vector3& p);
+bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, bool collision, int max_steps, float& depth, vector3& penetrationDirection);
 #endif

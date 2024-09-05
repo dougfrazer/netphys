@@ -2,16 +2,16 @@
 
 #include "vector.h"
 
-static float ClosestPointLinePointRatio(const vector3& p, const vector3& a, const vector3& b)
+static float FindClosestPointOnLineToPoint(const vector3& point, const vector3& line_start, const vector3& line_end)
 {
-	vector3 ap = p - a;
-	vector3 ab = b - a;
+	const vector3 ap = point - line_start;
+	const vector3 ab = line_end - line_start;
 	return ap.dot(ab) / ab.dot(ab);
 }
 
 static vector3 ClosestPointLinePoint(const vector3& p, const vector3& a, const vector3& b)
 {
-	float ratio = ClosestPointLinePointRatio(p, a, b);
+	float ratio = FindClosestPointOnLineToPoint(p, a, b);
 	return a + (b - a) * ratio;
 }
 

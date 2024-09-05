@@ -212,36 +212,49 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 	glPopMatrix();
 }
 //-------------------------------------------------------------------------------------------------
-vector3 Geometry::Support(const vector3& dir, const matrix4& world) const
+vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, int* optional_out_index) const
 {
-	std::vector<vector3> v = SupportAll(dir, world);
-	return v[0];
-}
-//-------------------------------------------------------------------------------------------------
-std::vector<vector3> Geometry::SupportAll(const vector3& dir, const matrix4& world) const
-{
-    std::vector<vector3> results;
 	// get the position furthest in the direction of geo (modified by world)
-	float dot_product = -std::numeric_limits<float>::infinity();
-	// todo: do we need to consider all vertices, or can we iteratively solve for the furthest?
-    //       possibly we can be given a previous vertex and consider all the edges to that vertex and
-    //       return the connected vertex that is furthest in the direction... so we only consider
-    //       a few vertices rather than the entire mesh
+    vector3 result;
+	float best_dot_product = -std::numeric_limits<float>::infinity();
+
 	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
 	{
-		vector3 t = world * m_mesh.m_vertices[i].pos;
-   		float c = dir.dot(t);
-        if (FloatEquals(c, dot_product))
-        {
-            results.push_back(t);
-        }
-		else if (c > dot_product)
+		vector3 world_pos = world * m_mesh.m_vertices[i].pos;
+		float dot_product = dir.dot(world_pos);
+		// what to do if two vertices are equally in the specified direction?
+        // i.e. dot_product == best_dot_product?
+        if (dot_product > best_dot_product)
 		{
-			dot_product = c;
-            results.clear();
-            results.push_back(t);
+			best_dot_product = dot_product;
+            result = world_pos;
+            if (optional_out_index)
+            {
+                *optional_out_index = i;
+            }
 		}
 	}
+
+    assert(best_dot_product != -std::numeric_limits<float>::infinity());
+
+	return result;
+}
+//-------------------------------------------------------------------------------------------------
+std::vector<vector3> Geometry::GetAllPointsInDirection(const vector3& dir, const matrix4& world) const
+{
+    std::vector<vector3> results;
+
+	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
+	{
+		vector3 world_pos = world * m_mesh.m_vertices[i].pos;
+   		float dot_product = dir.dot(world_pos);
+
+        if (dot_product > 0.0f)
+        {
+            results.push_back(world_pos);
+        }
+	}
+
 	return results;
 }
 //-------------------------------------------------------------------------------------------------
@@ -251,8 +264,9 @@ SphereGeometry::SphereGeometry(float radius)
 	CreateIcosahadron(radius, 3, &m_mesh);
 }
 //-------------------------------------------------------------------------------------------------
-std::vector<vector3> SphereGeometry::SupportAll(const vector3& dir, const matrix4& world) const
+std::vector<vector3> SphereGeometry::GetAllPointsInDirection(const vector3& dir, const matrix4& world) const
 {
+    // this is probably wrong, if run from the center in any direction it should return half of the sphere, not just the one point
     std::vector<vector3> r;
 	vector3 dir_normalized = dir.normalize();
 	vector3 circle_position = dir_normalized * m_radius;

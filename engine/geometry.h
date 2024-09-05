@@ -51,8 +51,9 @@ class Geometry
 public:
     virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
     // Support: Get further point in this shape in the direction specified (using the transform to world space specified)
-    virtual std::vector<vector3> SupportAll(const vector3& dir, const matrix4& world) const;
-    vector3 Support(const vector3& dir, const matrix4& world) const;
+    vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, int *optional_out_index = nullptr) const;
+
+    virtual std::vector<vector3> GetAllPointsInDirection(const vector3& dir, const matrix4& world) const;
 public:
 	Mesh m_mesh;
 };
@@ -61,7 +62,7 @@ class SphereGeometry : public Geometry
 {
 public:
     SphereGeometry(float radius);
-    virtual std::vector<vector3> SupportAll(const vector3& dir, const matrix4& world) const override;
+    virtual std::vector<vector3> GetAllPointsInDirection(const vector3& dir, const matrix4& world) const override;
 public:
     const float m_radius;
 };

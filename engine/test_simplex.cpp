@@ -42,8 +42,8 @@ static void ResetSimplex()
 {
 	s_simplexs.clear();
 	Simplex simplex;
-	vector3 a_local = s_collisionParams.a->Support({1,0,0}, matrix4());
-	vector3 b_local = s_collisionParams.b->Support({-1,0,0}, matrix4());
+	vector3 a_local = s_collisionParams.a->GetPointFurthestInDirection({1,0,0}, matrix4());
+	vector3 b_local = s_collisionParams.b->GetPointFurthestInDirection({-1,0,0}, matrix4());
 	simplex.verts.resize(1);
 	simplex.verts[0].A = s_collisionParams.aTransform * a_local;
 	simplex.verts[0].B = s_collisionParams.bTransform * b_local;

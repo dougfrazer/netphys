@@ -26,8 +26,8 @@ Physics::~Physics()
 //-------------------------------------------------------------------------------------------------
 void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
 {
-    vector3 n = data.planeNormal;
-    vector3 r = data.pointA - m_position;
+    vector3 n = vector3(0.0f, 0.0f, 1.0f); // TODO commenting out quickly, probably does need to be the normal of the intersection //data.planeNormal;
+    vector3 r = data.penetrationDirection;
 
     // Attempt to move the bodies out of the collision
     vector3 v = m_linearMomentum * (1.0f / m_static.m_mass);

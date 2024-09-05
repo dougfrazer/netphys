@@ -170,9 +170,9 @@ public:
         v.z = z / s;
         return v;
     }
-    bool Equals(const vector3& b, float tolerance)
+    static bool Equals(const vector3& a, const vector3& b, float tolerance)
     {
-        return FloatEquals(x,b.x,tolerance) && FloatEquals(y,b.y,tolerance) && FloatEquals(z,b.z,tolerance);
+        return FloatEquals(a.x,b.x,tolerance) && FloatEquals(a.y,b.y,tolerance) && FloatEquals(a.z,b.z,tolerance);
     }
     bool operator==(const vector3& b) const
     {

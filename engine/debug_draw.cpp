@@ -18,17 +18,21 @@ enum TwoDimensions
 	NUM_DIMENSIONS_2D,
 };
 
-static char s_startingGlyphChar;
+static char s_startingGlyphChar = 0;
 static char s_glyphsWidths[WIDTH_DATA_SIZE]; // precise width of a specific glyph
 static int s_bitmapSize[NUM_DIMENSIONS_2D];
 static int s_glyphSize[NUM_DIMENSIONS_2D]; // maximum width of each glyph
 static int s_bitsPerPixel = 0;
-static GLuint s_texID;
+static GLuint s_texID = 0;
+
+// font created by this tool:
+// https://github.com/CodeheadUK/CBFG
+static const char* font_filename = "TestFont.bff";
 
 // some math we can do upfront and cache
-static int s_rowSize;
-static float s_rowToV;
-static float s_colToU;
+static int s_rowSize = 0;
+static float s_rowToV = 0.f;
+static float s_colToU = 0.f;
 
 #ifndef GL_CLAMP_TO_EDGE 
 #define GL_CLAMP_TO_EDGE 0x812F 
@@ -49,7 +53,7 @@ static std::vector<DebugDrawString> s_strings;
 void InitTextures()
 {
 	std::fstream in;
-	in.open("TestFont.bff", std::ios_base::binary | std::ios_base::in);
+	in.open(font_filename, std::ios_base::binary | std::ios_base::in);
 
 	assert(!in.fail());
 
