@@ -54,6 +54,9 @@
     <ClInclude Include="debug_draw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="physics_util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="physics.cpp">
@@ -74,13 +77,16 @@
     <ClCompile Include="test_physics.cpp">
       <Filter>Test</Filter>
     </ClCompile>
-    <ClCompile Include="test_simplex.cpp">
+    <ClCompile Include="test_3d.cpp">
       <Filter>Test</Filter>
     </ClCompile>
     <ClCompile Include="test_2d.cpp">
       <Filter>Test</Filter>
     </ClCompile>
     <ClCompile Include="debug_draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="physics_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

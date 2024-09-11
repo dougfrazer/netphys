@@ -17,6 +17,8 @@ enum COLLISION_RESPONSE
 };
 struct CollisionData
 {
+    vector3 a_normal; // the normal to the face that collided on A
+    vector3 b_normal; // the normal to the face that collided on B
     vector3 penetrationDirection;
     float   depth;
     bool success = false;
@@ -104,10 +106,9 @@ struct CollisionParams
     const Geometry* b;
     matrix4  aTransform;
     matrix4  bTransform;
-
-    bool solve3D = true;
 };
-bool DetectCollision(const CollisionParams& params, CollisionData* outCollision);
+bool DetectCollision2D(const CollisionParams& params, CollisionData* outCollision);
+bool DetectCollision3D(const CollisionParams& params, CollisionData* outCollision);
 // separated out for testing purposes
 #ifdef TEST_PROGRAM
 enum COLLISION_RESULT
@@ -118,7 +119,9 @@ enum COLLISION_RESULT
     COLLISION_RESULT_NO_OVERLAP,
     COLLISION_RESULT_CONTINUE,
 };
-COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, struct Simplex& simplex);
+COLLISION_RESULT DetectCollisionStep2D(const CollisionParams& params, struct Simplex& simplex);
+COLLISION_RESULT DetectCollisionStep3D(const CollisionParams& params, struct Simplex& simplex);
 vector3 GetSearchDirection(const struct Simplex& simplex);
-bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, bool collision, int max_steps, float& depth, vector3& penetrationDirection);
+bool FindIntersectionPoints2D(const CollisionParams& params, Simplex& simplex, int max_steps, CollisionData* outCollision);
+bool FindIntersectionPoints3D(const CollisionParams& params, Simplex& simplex, int max_steps, CollisionData* outCollision);
 #endif

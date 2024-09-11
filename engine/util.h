@@ -255,7 +255,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	assert(!FloatEquals(c,0.0f));
 
 	// region A
-	if (u < 0.0f && v < 0.0f && w < 0.0f)
+	if (u <= 0.0f && v <= 0.0f && w <= 0.0f)
 	{
 		u = 0.0f;
 		v = 0.0f;
@@ -263,7 +263,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		return 1;
 	}
 	// region B
-	if (u >= 1.0f && v < 0.0f && w < 0.0f)
+	if (u >= 1.0f && v <= 0.0f && w <= 0.0f)
 	{
 		u = 1.0f;
 		v = 0.0f;
@@ -271,7 +271,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		return 2;
 	}
 	// region C
-	if (u < 0.0f && v >= 1.0f && w < 0.0f)
+	if (u <= 0.0f && v >= 1.0f && w <= 0.0f)
 	{
 		u = 0.0f;
 		v = 1.0f;
@@ -279,7 +279,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		return 3;
 	}
 	// region D
-	if (u < 0.0f && v < 0.0f && w >= 1.0f)
+	if (u <= 0.0f && v <= 0.0f && w >= 1.0f)
 	{
 		u = 0.0f;
 		v = 0.0f;
@@ -287,21 +287,21 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		return 4;
 	}
 	// region AB
-	if (u > 0.0f && u <= 1.0f && v < 0.0f && w < 0.0f)
+	if (u >= 0.0f && u <= 1.0f && v <= 0.0f && w <= 0.0f)
 	{
 		v = 0.0f;
 		w = 0.0f;
 		return 5;
 	}
 	// region AC
-	if (u < 0.0f && v > 0.0f && v <= 1.0f && w < 0.0f)
+	if (u <= 0.0f && v >= 0.0f && v <= 1.0f && w <= 0.0f)
 	{
 		u = 0.0f;
 		w = 0.0f;
 		return 6;
 	}
 	// region AD
-	if (u < 0.0f && v < 0.0f && w > 0.0f && w <= 1.0f)
+	if (u <= 0.0f && v <= 0.0f && w >= 0.0f && w <= 1.0f)
 	{
 		u = 0.0f;
 		v = 0.0f;
@@ -309,7 +309,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	}
 
 	// either region AB or ABC
-	if (u > 0.0f && v > 0.0f && w < 0.0f)
+	if (u >= 0.0f && v >= 0.0f && w <= 0.0f)
 	{
 		w = 0.0f;
 		if (u + v >= 1.0f)
@@ -323,7 +323,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	}
 
 	// either region BD or ABD
-	if (u > 0.0f && v < 0.0f && w > 0.0f)
+	if (u >= 0.0f && v <= 0.0f && w >= 0.0f)
 	{
 		v = 0.0f;
 		if (u + w >= 1.0f)
@@ -337,7 +337,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	}
 
 	// either AC or ACD
-	if (u < 0.0f && v > 0.0f && w > 0.0f)
+	if (u <= 0.0f && v >= 0.0f && w >= 0.0f)
 	{
 		u = 0.0f;
 		if (v + w > 1.0f)

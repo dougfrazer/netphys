@@ -22,13 +22,13 @@ struct vertex
 class Mesh
 {
 public:
-    void AddVertex(const vertex& v);
+    void AddVertex(const vector3& pos, const vector3& normal);
     void AddTriangle(const vector3& a, const vector3& b, const vector3& c, const vector3& n);
-    void AddTriangle(const vertex& a, const vertex& b, const vertex& c);
+    //void AddTriangle(const vertex& a, const vertex& b, const vertex& c);
 public: 
-	std::vector<vertex>  m_vertices;
-    std::vector<int>     m_indices;
-    std::vector<vector3> m_normals;
+	std::vector<vector3> m_vertexPos;      //
+    std::vector<vector3> m_vertexNormals;  // should be same size as vertexPos
+    std::vector<int>     m_indices;        // index into above arrays for each point
 };
 
 //******************************************************************************

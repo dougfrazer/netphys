@@ -4,6 +4,7 @@
 #include "matrix.h"
 #include <vector>
 #include "windows.h"
+#include "physics_util.h"
 
 #include <gl/GL.h>
 #include <gl/GLU.h>
@@ -13,30 +14,31 @@
 //-------------------------------------------------------------------------------------------------
 void Mesh::AddTriangle(const vector3& a, const vector3& b, const vector3& c, const vector3& n)
 {
-    AddVertex({a,n});
-    AddVertex({b,n});
-    AddVertex({c,n});
+    AddVertex(a,n);
+    AddVertex(b,n);
+    AddVertex(c,n);
 }
 //-------------------------------------------------------------------------------------------------
-void Mesh::AddTriangle(const vertex& a, const vertex& b, const vertex& c)
-{
-    AddVertex(a);
-    AddVertex(b);
-    AddVertex(c);
-}
+//void Mesh::AddTriangle(const vertex& a, const vertex& b, const vertex& c)
+//{
+//    AddVertex(a);
+//    AddVertex(b);
+//    AddVertex(c);
+//}
 //-------------------------------------------------------------------------------------------------
-void Mesh::AddVertex(const vertex& v)
+void Mesh::AddVertex(const vector3& pos, const vector3& normal)
 {
-    for (int i = 0; i < m_vertices.size(); i++)
+    for (int i = 0; i < m_vertexPos.size(); i++)
     {
-        if (m_vertices[i] == v)
+        if (m_vertexPos[i] == pos)
         {
             m_indices.push_back(i);
             return;
         }
     }
-    int index = (int)m_vertices.size();
-    m_vertices.push_back(v);
+    int index = (int)m_vertexPos.size();
+    m_vertexPos.push_back(pos);
+    m_vertexNormals.push_back(normal);
     m_indices.push_back(index);
 }
 
@@ -160,10 +162,7 @@ void CreateIcosahadron(float r, int numSubdivisions, Mesh* outMesh)
 
     for (int i = 0; i < vertexList.size(); i++)
     {
-        vertex v;
-        v.pos = vertexList[i];
-        v.normal = vertexList[i];
-        outMesh->AddVertex(v);
+        outMesh->AddVertex(vertexList[i], vertexList[i]);
     }
 }
 //-------------------------------------------------------------------------------------------------
@@ -204,8 +203,8 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 
 	for (int i = 0; i < m_mesh.m_indices.size(); i++)
 	{
-		glVertex3fv((GLfloat*)&m_mesh.m_vertices[m_mesh.m_indices[i]].pos);
-		glNormal3fv((GLfloat*)&m_mesh.m_vertices[m_mesh.m_indices[i]].normal);
+		glVertex3fv((GLfloat*)&m_mesh.m_vertexPos[m_mesh.m_indices[i]]);
+		glNormal3fv((GLfloat*)&m_mesh.m_vertexNormals[m_mesh.m_indices[i]]);
 	}
 	glEnd();
 
@@ -214,39 +213,16 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 //-------------------------------------------------------------------------------------------------
 vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, int* optional_out_index) const
 {
-	// get the position furthest in the direction of geo (modified by world)
-    vector3 result;
-	float best_dot_product = -std::numeric_limits<float>::infinity();
-
-	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
-	{
-		vector3 world_pos = world * m_mesh.m_vertices[i].pos;
-		float dot_product = dir.dot(world_pos);
-		// what to do if two vertices are equally in the specified direction?
-        // i.e. dot_product == best_dot_product?
-        if (dot_product > best_dot_product)
-		{
-			best_dot_product = dot_product;
-            result = world_pos;
-            if (optional_out_index)
-            {
-                *optional_out_index = i;
-            }
-		}
-	}
-
-    assert(best_dot_product != -std::numeric_limits<float>::infinity());
-
-	return result;
+    return PhysUtil_GetPointFurthestInDirection(m_mesh.m_vertexPos, dir, world, optional_out_index);
 }
 //-------------------------------------------------------------------------------------------------
 std::vector<vector3> Geometry::GetAllPointsInDirection(const vector3& dir, const matrix4& world) const
 {
     std::vector<vector3> results;
 
-	for (int i = 0; i < m_mesh.m_vertices.size(); i++)
+	for (int i = 0; i < m_mesh.m_vertexPos.size(); i++)
 	{
-		vector3 world_pos = world * m_mesh.m_vertices[i].pos;
+		vector3 world_pos = world * m_mesh.m_vertexPos[i];
    		float dot_product = dir.dot(world_pos);
 
         if (dot_product > 0.0f)

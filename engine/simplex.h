@@ -13,6 +13,7 @@ struct SimplexPoint
 };
 struct Simplex
 {
+	bool m_containsOrigin = false;
 	std::vector<SimplexPoint> verts;
 	int size() const { return (int)verts.size(); }
 

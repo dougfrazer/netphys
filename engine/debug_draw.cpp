@@ -141,7 +141,11 @@ void DebugDraw_RemoveAll()
 }
 void DebugDraw_Render()
 {
-	// make sure we called InitTextures() first
+	// nothing to render... does this need a better quick-bail?
+	if(!s_strings.size())
+		return;
+
+	// lazy initialize... kinda annoying, would lke to refactor
 	if (!s_texID)
 	{
 		InitTextures();

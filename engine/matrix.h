@@ -136,6 +136,8 @@ public:
 		w1 = d1; w2 = d2; w3 = d3; w4 = d4;
 	}
 
+	static matrix4 identity() { return matrix4(); }
+
 	vector4 operator*(const vector4& B) const
 	{
 		vector4 v;

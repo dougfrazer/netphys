@@ -5,6 +5,7 @@
 #include "lib.h"
 #include "simplex.h"
 #include "geometry.h"
+#include "debug_draw.h"
 #include <vector>
 
 #include "windows.h"
@@ -23,103 +24,95 @@ static struct
 	Physics* m_phys = nullptr;
 } s_board;
 
-struct SimplexResult
-{
-	Simplex simplex;
-	vector3 witnessPoints[2];
-	vector3 searchDirection;
-	COLLISION_RESULT result = COLLISION_RESULT_NONE;
-	SimplexResult(const Simplex& s) : simplex(s) {}
-};
-
-static std::vector<SimplexResult> s_simplexs;
+static CollisionData s_collisionData;
+static Simplex s_simplex;
+static vector3 s_searchDirection;
+static COLLISION_RESULT s_result = COLLISION_RESULT_NONE;
 static int s_iterCount = 0;
 static CollisionParams s_collisionParams;
-static int s_simplexIndex = 0;
-static bool s_simplexView = true;
+static bool s_simplexView = false;
+static bool s_collisionFound = false;
 
 static void ResetSimplex()
 {
-	s_simplexs.clear();
-	Simplex simplex;
 	vector3 a_local = s_collisionParams.a->GetPointFurthestInDirection({1,0,0}, matrix4());
 	vector3 b_local = s_collisionParams.b->GetPointFurthestInDirection({-1,0,0}, matrix4());
-	simplex.verts.resize(1);
-	simplex.verts[0].A = s_collisionParams.aTransform * a_local;
-	simplex.verts[0].B = s_collisionParams.bTransform * b_local;
-	simplex.verts[0].p = simplex.verts[0].A - simplex.verts[0].B;
-	SimplexResult start(simplex);
-	start.searchDirection = GetSearchDirection(start.simplex);
-	s_simplexs.push_back(start);
-	s_simplexIndex = 0;
+	s_simplex.verts.resize(1);
+	s_simplex.verts[0].A = s_collisionParams.aTransform * a_local;
+	s_simplex.verts[0].B = s_collisionParams.bTransform * b_local;
+	s_simplex.verts[0].p = s_simplex.verts[0].A - s_simplex.verts[0].B;
+	s_searchDirection = GetSearchDirection(s_simplex);
+	s_result = COLLISION_RESULT_NONE;
+	s_collisionFound = false;
+	s_collisionData.depth = 0.0f;
+	s_collisionData.penetrationDirection = vector3();
 }
 
 static void ProcessInput(float dt)
 {
 	Platform_BasicCameraInput(dt);
 
-	if (Platform_InputIsDown('T'))
+	if (Platform_InputChangedDown('T'))
 	{
-		if (s_simplexs[s_simplexIndex].result != COLLISION_RESULT_NO_OVERLAP)
+		switch (s_result)
 		{
-			s_simplexIndex++;
-			if (s_simplexIndex == s_simplexs.size())
+			case COLLISION_RESULT_NONE:
+			case COLLISION_RESULT_CONTINUE:
 			{
-				SimplexResult next = Simplex(s_simplexs.back().simplex);
-				next.result = DetectCollisionStep(s_collisionParams, next.simplex);
-				if (next.simplex.size() < 4)
+				s_result = DetectCollisionStep3D(s_collisionParams, s_simplex);
+				if (s_simplex.size() < 4)
 				{
-					next.searchDirection = GetSearchDirection(next.simplex);
+					s_searchDirection = GetSearchDirection(s_simplex);
 				}
-				
-			//	if (next.result != COLLISION_RESULT_CONTINUE)
-			//	{
-			//		float depth;
-			//		vector3 p;
-			//		FindCollisionDepthStep(s_collisionParams, next.simplex, depth, next.witnessPoints[0], next.witnessPoints[1], p);
-			//	}
-				s_simplexs.push_back(next);
 			}
+			break;
+
+			case COLLISION_RESULT_NO_OVERLAP:
+			case COLLISION_RESULT_OVERLAP:
+			{
+				s_collisionFound = FindIntersectionPoints3D(s_collisionParams, s_simplex, 1, &s_collisionData);
+			}
+		break;
+
+		default: assert(false);
 		}
 	}
-	if (Platform_InputIsDown('G'))
-	{
-		s_simplexIndex = max(0, s_simplexIndex - 1);
-	}
-	if (Platform_InputIsDown('R'))
+
+	if (Platform_InputChangedDown('R'))
 	{
 		ResetSimplex();
 	}
 
 	// move and rotate object
-	if (Platform_InputIsDown(ARROW_KEY_UP))
+	if (Platform_InputChangedDown(ARROW_KEY_UP))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 1.0f, 0.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (Platform_InputIsDown(ARROW_KEY_DOWN))
+	if (Platform_InputChangedDown(ARROW_KEY_DOWN))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, -1.0f, 0.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (Platform_InputIsDown(ARROW_KEY_LEFT))
+	if (Platform_InputChangedDown(ARROW_KEY_LEFT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, 1.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (Platform_InputIsDown(ARROW_KEY_RIGHT))
+	if (Platform_InputChangedDown(ARROW_KEY_RIGHT))
 	{
 		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, -1.0f));
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
-	if (Platform_InputIsDown('Z'))
+	if (Platform_InputChangedDown('Z'))
 	{
 		s_simplexView = !s_simplexView;
 		Platform_ResetCamera();
+		ResetSimplex();
 	}
 }
 
@@ -132,28 +125,15 @@ static void Draw()
 {
 	glPointSize(4.f);
 
-	const auto& result = s_simplexs[s_simplexIndex];
-	if (result.result == COLLISION_RESULT_OVERLAP || result.result == COLLISION_RESULT_NO_OVERLAP)
-	{
-		const vector4 witnessPointAColor = { 0.0f, 1.0f, 0.0f, 1.0f };
-		const vector4 witnessPointBColor = { 1.0f, 0.0f, 0.0f, 1.0f };
-		const vector4 witnessLineColor   = { 1.0f, 1.0f, 1.0f, 1.0f };
-		glBegin(GL_POINTS);
-		glColor4fv((GLfloat*)&witnessPointAColor);
-		glVertex3fv((GLfloat*)&result.witnessPoints[0]);
-		glColor4fv((GLfloat*)&witnessPointBColor);
-		glVertex3fv((GLfloat*)&result.witnessPoints[1]);
-		glEnd();
-
-		glBegin(GL_LINES);
-		glColor4fv((GLfloat*)&witnessLineColor);
-		glVertex3fv((GLfloat*)&result.witnessPoints[0]);
-		glVertex3fv((GLfloat*)&result.witnessPoints[1]);
-		glEnd();
-	}
+	constexpr int text_height = 18;
+	int textPos = 0;
+	DebugDraw_RemoveAll();
 
 	if (s_simplexView)
 	{
+		DebugDraw_AddString("Simplex View", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+
 		glDisable(GL_LIGHTING);
 
 		GLfloat modelMatrix[16];
@@ -181,21 +161,22 @@ static void Draw()
 
 		glEnd();
 
-
-		const auto& s = result.simplex;
 		const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
 		const vector4 searchDirectionColor = { 0.9f, 0.9f, 0.9f, 0.7f };
-		switch (s.size())
+		switch (s_simplex.size())
 		{
 			case 1:
 			{
+				DebugDraw_AddString("1 simplex", 0, textPos, TEXT_COLOR_WHITE);
+				textPos += text_height;
+
 				glBegin(GL_POINTS);
 				glColor4fv((GLfloat*)(&simplexColor));
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
 				glEnd();
 
-				vector3 midPoint = (s.verts[0].p);
-				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 midPoint = (s_simplex.verts[0].p);
+				vector3 searchNorm = s_searchDirection.normalize();
 				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
 				glBegin(GL_LINES);
 				glColor4fv((GLfloat*)&searchDirectionColor);
@@ -207,13 +188,16 @@ static void Draw()
 
 			case 2:
 			{
+				DebugDraw_AddString("2 simplex", 0, textPos, TEXT_COLOR_WHITE);
+				textPos += text_height;
+
 				glBegin(GL_LINES);
 				glColor4fv((GLfloat*)(&simplexColor));
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
-				glVertex3fv((GLfloat*)(&s.verts[1].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
 
-				vector3 midPoint = (s.verts[0].p + s.verts[1].p) / 2.0f;
-				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 midPoint = (s_simplex.verts[0].p + s_simplex.verts[1].p) / 2.0f;
+				vector3 searchNorm = s_searchDirection.normalize();
 				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
 				glBegin(GL_LINES);
 				glColor4fv((GLfloat*)&searchDirectionColor);
@@ -223,26 +207,27 @@ static void Draw()
 
 				glBegin(GL_POINTS);
 				glColor3f(1.0f, 0.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[0].p);
 				glColor3f(0.0f, 1.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[1].p);
 				glEnd();
 			}
 			break;
 
 			case 3:
 			{
-
+				DebugDraw_AddString("3 simplex", 0, textPos, TEXT_COLOR_WHITE);
+				textPos += text_height;
 
 				glBegin(GL_TRIANGLES);
 				glColor4fv((GLfloat*)(&simplexColor));
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
-				glVertex3fv((GLfloat*)(&s.verts[1].p));
-				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
 				glEnd();
 
-				vector3 midPoint = (s.verts[0].p + s.verts[1].p + s.verts[2].p) / 3.0f;
-				vector3 searchNorm = result.searchDirection.normalize();
+				vector3 midPoint = (s_simplex.verts[0].p + s_simplex.verts[1].p + s_simplex.verts[2].p) / 3.0f;
+				vector3 searchNorm = s_searchDirection.normalize();
 				vector3 searchDirEnd = midPoint + searchNorm * 5.0f;
 				glBegin(GL_LINES);
 				glColor4fv((GLfloat*)&searchDirectionColor);
@@ -252,46 +237,49 @@ static void Draw()
 
 				glBegin(GL_POINTS);
 				glColor3f(1.0f, 0.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[0].p);
 				glColor3f(0.0f, 1.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[1].p);
 				glColor3f(0.0f, 0.0f, 1.0f);
-				glVertex3fv((GLfloat*)&s.verts[2].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[2].p);
 				glEnd();
 			}
 			break;
 
 			case 4:
 			{
+				DebugDraw_AddString("4 simplex", 0, textPos, TEXT_COLOR_WHITE);
+				textPos += text_height;
+
 				//  ABC, ACD, DBA, BDC
 				glBegin(GL_TRIANGLES);
 				glColor4f(0.2f, 0.2f, 0.2f, 1.0f);
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
-				glVertex3fv((GLfloat*)(&s.verts[1].p));
-				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
 					
 				glColor4f(0.4f, 0.4f, 0.4f, 1.0f);
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
-				glVertex3fv((GLfloat*)(&s.verts[2].p));
-				glVertex3fv((GLfloat*)(&s.verts[3].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
 					
 				glColor4f(0.6f, 0.6f, 0.6f, 1.0f);
-				glVertex3fv((GLfloat*)(&s.verts[3].p));
-				glVertex3fv((GLfloat*)(&s.verts[1].p));
-				glVertex3fv((GLfloat*)(&s.verts[0].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
 					
 				glColor4f(0.8f, 0.8f, 0.8f, 1.0f);
-				glVertex3fv((GLfloat*)(&s.verts[1].p));
-				glVertex3fv((GLfloat*)(&s.verts[3].p));
-				glVertex3fv((GLfloat*)(&s.verts[2].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
+				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
 				glEnd();
 
 					
 				vector3 origin;
-				vector3 ABC_center = (s.verts[0].p + s.verts[1].p + s.verts[2].p) / 3.0f;
-				vector3 ACD_center = (s.verts[0].p + s.verts[2].p + s.verts[3].p) / 3.0f;
-				vector3 DBA_center = (s.verts[3].p + s.verts[1].p + s.verts[0].p) / 3.0f;
-				vector3 BDC_center = (s.verts[1].p + s.verts[2].p + s.verts[3].p) / 3.0f;
+				vector3 ABC_center = (s_simplex.verts[0].p + s_simplex.verts[1].p + s_simplex.verts[2].p) / 3.0f;
+				vector3 ACD_center = (s_simplex.verts[0].p + s_simplex.verts[2].p + s_simplex.verts[3].p) / 3.0f;
+				vector3 DBA_center = (s_simplex.verts[3].p + s_simplex.verts[1].p + s_simplex.verts[0].p) / 3.0f;
+				vector3 BDC_center = (s_simplex.verts[1].p + s_simplex.verts[2].p + s_simplex.verts[3].p) / 3.0f;
 				glBegin(GL_LINES);
 				glVertex3fv((GLfloat*)&ABC_center);
 				glVertex3fv((GLfloat*)&origin);
@@ -305,13 +293,13 @@ static void Draw()
 
 				glBegin(GL_POINTS);
 				glColor3f(1.0f, 0.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[0].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[0].p);
 				glColor3f(0.0f, 1.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s.verts[1].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[1].p);
 				glColor3f(0.0f, 0.0f, 1.0f);
-				glVertex3fv((GLfloat*)&s.verts[2].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[2].p);
 				glColor3f(1.0f, 0.0f, 1.0f);
-				glVertex3fv((GLfloat*)&s.verts[3].p);
+				glVertex3fv((GLfloat*)&s_simplex.verts[3].p);
 				glEnd();
 			}
 			break;
@@ -321,6 +309,9 @@ static void Draw()
 	}
 	else
 	{
+		DebugDraw_AddString("Model View", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+
 		GLfloat lightPos[][3] = {
 			{ -50.f, 10.f, -50.f },
 			{  50.f, 10.f, -50.f },
@@ -373,6 +364,20 @@ static void Draw()
 			s_board.m_geo->Draw(m, &p);
 		}
 	}
+
+	switch (s_result)
+	{
+		case COLLISION_RESULT_CONTINUE:   DebugDraw_AddString("Continue", 0, textPos, TEXT_COLOR_WHITE);          textPos += text_height; break;
+		case COLLISION_RESULT_OVERLAP:    DebugDraw_AddString("Overlap", 0, textPos, TEXT_COLOR_WHITE);           textPos += text_height; break;
+		case COLLISION_RESULT_NO_OVERLAP: DebugDraw_AddString("No Overlap", 0, textPos, TEXT_COLOR_WHITE);        textPos += text_height; break;
+		case COLLISION_RESULT_NONE:       DebugDraw_AddString("No Collision Data", 0, textPos, TEXT_COLOR_WHITE); textPos += text_height; break;
+	}
+
+	if (s_collisionFound)
+	{
+		// TODO: draw the penetration direction , see test_2d
+	}
+
 }
 
 static void CreateCircle()
@@ -417,7 +422,7 @@ static void CreateBoard()
 	s_board.m_phys = new Physics(s_board.m_geo, physData);
 }
 
-void TestSimplex()
+void Test3D()
 {
 	CreateCircle();
 	CreateBoard();

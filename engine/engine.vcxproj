@@ -133,6 +133,7 @@
     <ClInclude Include="lib.h" />
     <ClInclude Include="matrix.h" />
     <ClInclude Include="physics.h" />
+    <ClInclude Include="physics_util.h" />
     <ClInclude Include="plane.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="quaternion.h" />
@@ -147,9 +148,10 @@
     <ClCompile Include="geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="physics.cpp" />
+    <ClCompile Include="physics_util.cpp" />
     <ClCompile Include="test_2d.cpp" />
     <ClCompile Include="test_physics.cpp" />
-    <ClCompile Include="test_simplex.cpp" />
+    <ClCompile Include="test_3d.cpp" />
     <ClCompile Include="windows.cpp" />
   </ItemGroup>
   <ItemGroup>

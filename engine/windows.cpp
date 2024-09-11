@@ -8,6 +8,8 @@
 #include <gl/GLU.h>
 #include <vector>
 
+#include "debug_draw.h"
+
 #include "geometry.h"
 #include "lib.h"
 #include "matrix.h"
@@ -172,8 +174,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             int x = LOWORD(lParam);
             int y = HIWORD(lParam);
-            s_mostRecentInput.x += x - s_lastMoveX;
-            s_mostRecentInput.y += y - s_lastMoveY;
+            s_mostRecentInput.x = x - s_lastMoveX;
+            s_mostRecentInput.y = y - s_lastMoveY;
             s_lastMoveX = x;
             s_lastMoveY = y;
         }
@@ -182,7 +184,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         case WM_KEYDOWN:
         {
 			char c = (char)(wParam);
-			assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
+			//assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
 
 			if (c >= 'A' && c <= 'Z')
 			{
@@ -398,6 +400,7 @@ void Platform_Run(const PlatformParams& params)
         {
             StartDrawFrame();
             params.drawCallback();
+            DebugDraw_Render();
             SwapBuffers(s_renderDC);
         }
       

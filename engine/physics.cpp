@@ -90,6 +90,9 @@ void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
 //-------------------------------------------------------------------------------------------------
 // pushOut is a temporary solution to resolve collisions where we adjust the position so its no longer
 // pertruding... ideally we could make it so we can re-run the sim until there are no collisions
+//
+// $TODO continuous-advancement
+//
 void OnCollision(Collision& data, bool pushOut)
 {
     switch (data.a->GetCollisionResponse())
@@ -134,7 +137,7 @@ std::vector<Collision> GetCollisions(std::vector<Physics*> updateList)
             p.aTransform = a->GetTransform();
             p.b = b->GetGeometry();
             p.bTransform = b->GetTransform();
-            if (DetectCollision(p, &collisionData))
+            if (DetectCollision3D(p, &collisionData))
             {
                 collisions.push_back({ *it, *innerIt, collisionData });
                 break;

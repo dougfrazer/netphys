@@ -1,5 +1,5 @@
 #pragma once
 
 void TestPhysics();
-void TestSimplex();
+void Test3D();
 void Test2D();

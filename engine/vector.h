@@ -240,6 +240,7 @@ public:
 //    }
 };
 
+
 namespace Coordinates
 {
     static vector3 GetUp()    { return vector3( 0.0f, 1.0f, 0.0f); }
@@ -249,4 +250,5 @@ namespace Coordinates
     static vector3 GetIn()    { return vector3( 1.0f, 0.0f, 0.0f); }
     static vector3 GetOut()   { return vector3(-1.0f, 0.0f, 0.0f); }
 }
+
 

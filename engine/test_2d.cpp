@@ -8,6 +8,8 @@
 #include "simplex.h"
 #include "geometry.h"
 #include "debug_draw.h"
+#include "util.h"
+#include "physics_util.h"
 #include <vector>
 
 #include "windows.h"
@@ -35,7 +37,6 @@ void ResetSimplex()
 	s_collisionParams.b = &s_box;
 	s_collisionParams.aTransform = s_triangleTransform;
 	s_collisionParams.bTransform = s_boxTransform;
-	s_collisionParams.solve3D = false;
 	s_simplex.verts.clear();
 	s_simplex.verts.resize(1);
 	s_simplex.verts[0].A = s_triangle.GetPointFurthestInDirection({1,0,0}, s_triangleTransform);
@@ -62,15 +63,14 @@ static void ProcessInput(float dt)
 			case COLLISION_RESULT_NONE:
 			case COLLISION_RESULT_CONTINUE:
 			{
-				s_result = DetectCollisionStep(s_collisionParams, s_simplex);
+				s_result = DetectCollisionStep2D(s_collisionParams, s_simplex);
 			}
 			break;
 
 			case COLLISION_RESULT_NO_OVERLAP:
 			case COLLISION_RESULT_OVERLAP:
 			{
-				const bool overlap = s_result == COLLISION_RESULT_OVERLAP;
-				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, overlap, 1, s_collisionData.depth, s_collisionData.penetrationDirection);
+				s_collisionFound = FindIntersectionPoints2D(s_collisionParams, s_simplex, 1, &s_collisionData);
 			}
 			break;
 
@@ -131,8 +131,8 @@ static void GetMinkowskiDifference(vector3* diff)
 	{
 		for (int j = 0; j < 4; j++)
 		{
-			vector3 t = s_triangleTransform * s_triangle.m_mesh.m_vertices[i].pos;
-			vector3 b = s_boxTransform * s_box.m_mesh.m_vertices[j].pos;
+			vector3 t = s_triangleTransform * s_triangle.m_mesh.m_vertexPos[i];
+			vector3 b = s_boxTransform * s_box.m_mesh.m_vertexPos[j];
 			vector3 v = t - b;
 			diff[i * 4 + j] = v;
 		}
@@ -150,19 +150,24 @@ static int get_orientation(const vector3& p, const vector3& q, const vector3& r)
 	return (val > 0.0f) ? 1 : 2;
 }
 //-------------------------------------------------------------------------------------------------
-static void DrawConvexHull(const vector3* diff)
+static void DrawConvexHull(const std::vector<vector3>& diff)
 {
+	// This is quick and dirty, assuming 2D... eventually want to make a 3D version and generalize it
+	const int numPoints = static_cast<int>(diff.size());
+	
+	// sort by x
 	int l = 0;
-	for (int i = 1; i < 12; i++)
+	for (int i = 1; i < numPoints; i++)
 		if (diff[i].x < diff[l].x)
 			l = i;
+
 	int p = l, q;
 	glBegin(GL_LINE_LOOP);
 	do
 	{
 		glVertex3fv((GLfloat*)&diff[p]);
-		q = (p + 1) % 12;
-		for (int i = 0; i < 12; i++)
+		q = (p + 1) % numPoints;
+		for (int i = 0; i < numPoints; i++)
 		{
 			if (get_orientation(diff[p], diff[i], diff[q]) == 2)
 				q = i;
@@ -234,16 +239,19 @@ static void Draw()
 		currentTextHeight += textHeight;
 
 		// draw the minkowski difference w/ convex hull
-		vector3 diff[12];
-		GetMinkowskiDifference(diff);
+		MinkowskiDifference diff;
+		PhysUtil_GenerateMinkowskiDifference(s_triangle, s_triangleTransform, s_box, s_boxTransform, &diff);
+
+		// draw each point
 		glColor3f(0.0f, 1.0f, 1.0f);
 		glBegin(GL_POINTS);
-		for (int i = 0; i < 12; i++)
+		for (int i = 0; i < diff.allPoints.size(); i++)
 		{
-			glVertex3fv((GLfloat*)&diff[i]);
+			glVertex3fv((GLfloat*)&diff.allPoints[i]);
 		}
 		glEnd();
-		DrawConvexHull(diff);
+
+		DrawConvexHull(diff.allPoints);
 	
 		glPointSize(8.0f);
 
@@ -308,7 +316,7 @@ static void Draw()
 		glBegin(GL_LINE_LOOP);
 		for (int i = 0; i < 3; i++)
 		{
-			vector3 v = s_triangleTransform * s_triangle.m_mesh.m_vertices[i].pos;
+			vector3 v = s_triangleTransform * s_triangle.m_mesh.m_vertexPos[i];
 			glVertex3fv((GLfloat*)&v);
 		}
 		glEnd();
@@ -317,7 +325,7 @@ static void Draw()
 		glBegin(GL_LINE_LOOP);
 		for (int i = 0; i < 4; i++)
 		{
-			vector3 v = s_boxTransform * s_box.m_mesh.m_vertices[i].pos;
+			vector3 v = s_boxTransform * s_box.m_mesh.m_vertexPos[i];
 			glVertex3fv((GLfloat*)&v);
 		}
 		glEnd();
@@ -326,45 +334,56 @@ static void Draw()
 		{
 			const vector3 penetration_offset = -s_collisionData.penetrationDirection * s_collisionData.depth;
 
-			// draw an arrow from the center in the direction of the penetration
-			vector3 triangle_center;
-			for (int i = 0; i < 3; i++)
-			{
-				triangle_center = triangle_center + (s_triangleTransform * s_triangle.m_mesh.m_vertices[i].pos);
-			}
-			triangle_center = triangle_center / 3.0f;
-			DrawArrow(triangle_center, triangle_center + penetration_offset);
+			// to illustrate the movement, find the point furthest in penetration direction on the triangle
+			vector3 a = s_triangle.m_mesh.m_vertexPos[0];
+			vector3 b = s_triangle.m_mesh.m_vertexPos[1];
+			vector3 c = s_triangle.m_mesh.m_vertexPos[2];
+			vector3 arrow_start = s_triangleTransform * ClosestPointTrianglePoint(penetration_offset * 10.0f, a, b, c);
+			DrawArrow(arrow_start, arrow_start + penetration_offset);
 
 			// draw a shadow triangle if we moved it by penetration distance in penetration direction
 			glColor3f(1.0, 1.0f, 0.0f);
 			glBegin(GL_LINE_LOOP);
 			for (int i = 0; i < 3; i++)
 			{
-				vector3 v = penetration_offset + (s_triangleTransform * s_triangle.m_mesh.m_vertices[i].pos);
+				vector3 v = penetration_offset + (s_triangleTransform * s_triangle.m_mesh.m_vertexPos[i]);
 				glVertex3fv((GLfloat*)&v);
 			}
 			glEnd();
 		}
 	}
-
-	DebugDraw_Render();
 }
 
 //-------------------------------------------------------------------------------------------------
-
+// Test2D:
+// 
+// This is meant to be a visualization and test of the collision detection in 2D because it is easier
+// to visually see.
+// It will create two shapes that you can move with WASD keys and then you can press the T button to advance
+// the GJK/EPA algorithms one step at a time.
+// You can also press Z to swap between viewing the objects in object space and viewing what the algorithm
+// is doing in Minkowski-Difference space.
+// What you should see is:
+//   - The algorithm tries to find three points in Minkowski Difference space that fully encapsulate the origin
+//   - If it does, a collusion must have occured, and it then iteratively expands out from the closest point
+//     in the generated simplex (originally three points) until it gets to an edge in the Minkowski difference
+//   - It will then show you the penetration depth and direction
+//   - In object space, it will draw a second yellow object where the collision detector determined it should
+//     move the object to get out of the collision (the minimum distance possible)
+//-------------------------------------------------------------------------------------------------
 void Test2D()
 {
 	Platform_SetCameraPos({ 0, 0, 20 });
 	Platform_SetCameraLookAt({ 0,0,0 });
 	
-	s_triangle.m_mesh.AddVertex({{ 0, 1, 0 }, {0, 0, 1}});
-	s_triangle.m_mesh.AddVertex({{ 4, 0, 0 }, {0, 0, 1}});
-	s_triangle.m_mesh.AddVertex({{ 4, 2, 0 }, {0, 0, 1}});
+	s_triangle.m_mesh.AddVertex({ 0, 1, 0 }, {0, 0, 1});
+	s_triangle.m_mesh.AddVertex({ 4, 0, 0 }, {0, 0, 1});
+	s_triangle.m_mesh.AddVertex({ 4, 2, 0 }, {0, 0, 1});
 
-	s_box.m_mesh.AddVertex({{ 0, 0, 0 }, { 0, 0, 1}});
-	s_box.m_mesh.AddVertex({{ 5, 0, 0 }, { 0, 0, 1}});
-	s_box.m_mesh.AddVertex({{ 5, 5, 0 }, { 0, 0, 1}});
-	s_box.m_mesh.AddVertex({{ 0, 5, 0 }, { 0, 0, 1}});
+	s_box.m_mesh.AddVertex({ 0, 0, 0 }, { 0, 0, 1});
+	s_box.m_mesh.AddVertex({ 5, 0, 0 }, { 0, 0, 1});
+	s_box.m_mesh.AddVertex({ 5, 5, 0 }, { 0, 0, 1});
+	s_box.m_mesh.AddVertex({ 0, 5, 0 }, { 0, 0, 1});
 
 	ResetSimplex();
 
