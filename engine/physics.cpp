@@ -24,9 +24,8 @@ Physics::~Physics()
 
 
 //-------------------------------------------------------------------------------------------------
-void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
+void Physics::ApplyImpulseResponse(CollisionData& data, vector3 n)
 {
-    vector3 n = vector3(0.0f, 0.0f, 1.0f); // TODO commenting out quickly, probably does need to be the normal of the intersection //data.planeNormal;
     vector3 r = data.penetrationDirection;
 
     // Attempt to move the bodies out of the collision
@@ -42,11 +41,9 @@ void Physics::ApplyImpulseResponse(CollisionData& data, bool pushOut)
     m_linearMomentum = m_linearMomentum + n * j;
     m_angularMomentum = m_angularMomentum + r.cross(n) * j;
 
-    if (pushOut)
-    {
-        const float adjust = data.depth * 1.01f;
-        m_position = m_position + n * adjust;
-    }
+    // now adjust the position so it is no longer colliding
+    const float adjust = data.depth * 1.01f;
+    m_position = m_position + n * adjust;
 
     // apply friction
     //if (m_static.m_staticFrictionCoeff)
@@ -99,7 +96,7 @@ void OnCollision(Collision& data, bool pushOut)
     {
         case COLLISION_RESPONSE_IMPULSE:
         {
-            data.a->ApplyImpulseResponse(data.data, pushOut);
+            data.a->ApplyImpulseResponse(data.data, data.data.b_normal);
         }
         default:
             break;
@@ -109,7 +106,7 @@ void OnCollision(Collision& data, bool pushOut)
     {
         case COLLISION_RESPONSE_IMPULSE:
         {
-            data.b->ApplyImpulseResponse(data.data, pushOut);
+            data.b->ApplyImpulseResponse(data.data, data.data.a_normal);
         }
         default:
             break;
@@ -137,7 +134,7 @@ std::vector<Collision> GetCollisions(std::vector<Physics*> updateList)
             p.aTransform = a->GetTransform();
             p.b = b->GetGeometry();
             p.bTransform = b->GetTransform();
-            if (DetectCollision3D(p, &collisionData))
+            if (DetectCollision(p, true, &collisionData))
             {
                 collisions.push_back({ *it, *innerIt, collisionData });
                 break;

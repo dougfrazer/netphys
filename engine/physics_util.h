@@ -3,10 +3,10 @@
 #include "geometry.h"
 
 vector3 PhysUtil_GetPointFurthestInDirection(
-const std::vector<vector3>& points, 
-const vector3& direction, 
-const matrix4& world, 
-int* optional_out_index);
+	const std::vector<vector3>& points, 
+	const vector3& direction, 
+	const matrix4& world, 
+	int* optional_out_index);
 
 #ifdef TEST_PROGRAM
 struct MinkowskiDifference

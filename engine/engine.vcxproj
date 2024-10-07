@@ -152,6 +152,7 @@
     <ClCompile Include="test_2d.cpp" />
     <ClCompile Include="test_physics.cpp" />
     <ClCompile Include="test_3d.cpp" />
+    <ClCompile Include="test_util.cpp" />
     <ClCompile Include="windows.cpp" />
   </ItemGroup>
   <ItemGroup>

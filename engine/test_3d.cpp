@@ -35,12 +35,13 @@ static bool s_collisionFound = false;
 
 static void ResetSimplex()
 {
-	vector3 a_local = s_collisionParams.a->GetPointFurthestInDirection({1,0,0}, matrix4());
-	vector3 b_local = s_collisionParams.b->GetPointFurthestInDirection({-1,0,0}, matrix4());
+	vector3 a_local = s_collisionParams.a->GetPointFurthestInDirection({1,0,0}, matrix4(), true);
+	vector3 b_local = s_collisionParams.b->GetPointFurthestInDirection({-1,0,0}, matrix4(), true);
 	s_simplex.verts.resize(1);
 	s_simplex.verts[0].A = s_collisionParams.aTransform * a_local;
 	s_simplex.verts[0].B = s_collisionParams.bTransform * b_local;
 	s_simplex.verts[0].p = s_simplex.verts[0].A - s_simplex.verts[0].B;
+	s_simplex.m_containsOrigin = false;
 	s_searchDirection = GetSearchDirection(s_simplex);
 	s_result = COLLISION_RESULT_NONE;
 	s_collisionFound = false;
@@ -48,7 +49,7 @@ static void ResetSimplex()
 	s_collisionData.penetrationDirection = vector3();
 }
 
-static void ProcessInput(float dt)
+static void HandleInput(float dt)
 {
 	Platform_BasicCameraInput(dt);
 
@@ -59,7 +60,7 @@ static void ProcessInput(float dt)
 			case COLLISION_RESULT_NONE:
 			case COLLISION_RESULT_CONTINUE:
 			{
-				s_result = DetectCollisionStep3D(s_collisionParams, s_simplex);
+				s_result = DetectCollisionStep(s_collisionParams, true, s_simplex);
 				if (s_simplex.size() < 4)
 				{
 					s_searchDirection = GetSearchDirection(s_simplex);
@@ -70,9 +71,9 @@ static void ProcessInput(float dt)
 			case COLLISION_RESULT_NO_OVERLAP:
 			case COLLISION_RESULT_OVERLAP:
 			{
-				s_collisionFound = FindIntersectionPoints3D(s_collisionParams, s_simplex, 1, &s_collisionData);
+				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, 20, true, &s_collisionData);
 			}
-		break;
+			break;
 
 		default: assert(false);
 		}
@@ -86,25 +87,25 @@ static void ProcessInput(float dt)
 	// move and rotate object
 	if (Platform_InputChangedDown(ARROW_KEY_UP))
 	{
-		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 1.0f, 0.0f));
+		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + Coordinates::GetUp());
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
 	if (Platform_InputChangedDown(ARROW_KEY_DOWN))
 	{
-		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, -1.0f, 0.0f));
+		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + Coordinates::GetDown());
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
 	if (Platform_InputChangedDown(ARROW_KEY_LEFT))
 	{
-		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, 1.0f));
+		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + Coordinates::GetLeft());
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
 	if (Platform_InputChangedDown(ARROW_KEY_RIGHT))
 	{
-		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + vector3(0.0f, 0.0f, -1.0f));
+		s_circle.m_phys->SetPosition(s_circle.m_phys->GetPosition() + Coordinates::GetRight());
 		s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
 		ResetSimplex();
 	}
@@ -118,7 +119,28 @@ static void ProcessInput(float dt)
 
 static void Update(float dt)
 {
-	ProcessInput(dt);
+	HandleInput(dt);
+}
+
+static void DrawCoordinateAxis()
+{
+
+	// Coordinate Axis Lines
+	glBegin(GL_LINES);
+
+	glColor3f(1.0f, 0.0f, 0.0f);
+	glVertex3f(-100.f, 0.f, 0.f);
+	glVertex3f(100.f, 0.f, 0.f);
+
+	glColor3f(0.f, 1.0, 0.f);
+	glVertex3f(0.f, -100.f, 0.f);
+	glVertex3f(0.f, 100.f, 0.f);
+
+	glColor3f(0.f, 0.f, 1.0f);
+	glVertex3f(0.f, 0.f, -100.f);
+	glVertex3f(0.f, 0.f, 100.f);
+
+	glEnd();
 }
 
 static void Draw()
@@ -133,6 +155,10 @@ static void Draw()
 	{
 		DebugDraw_AddString("Simplex View", 0, textPos, TEXT_COLOR_WHITE);
 		textPos += text_height;
+		DebugDraw_AddString("T - advance algorithm", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("Z - switch view", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
 
 		glDisable(GL_LIGHTING);
 
@@ -143,23 +169,7 @@ static void Draw()
 		glMatrixMode(GL_MODELVIEW);
 		glLoadMatrixf((GLfloat*)&modelMatrix);
 
-		
-		// Coordinate Axis Lines
-		glBegin(GL_LINES);
-
-		glColor3f(1.0f, 0.0f, 0.0f);
-		glVertex3f(-100.f,0.f,0.f);
-		glVertex3f(100.f,0.f,0.f);
-
-		glColor3f(0.f, 1.0, 0.f);
-		glVertex3f(0.f, -100.f, 0.f);
-		glVertex3f(0.f, 100.f, 0.f);
-
-		glColor3f(0.f, 0.f, 1.0f);
-		glVertex3f(0.f, 0.f, -100.f);
-		glVertex3f(0.f, 0.f, 100.f);
-
-		glEnd();
+		DrawCoordinateAxis();
 
 		const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
 		const vector4 searchDirectionColor = { 0.9f, 0.9f, 0.9f, 0.7f };
@@ -274,33 +284,6 @@ static void Draw()
 				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
 				glEnd();
 
-					
-				vector3 origin;
-				vector3 ABC_center = (s_simplex.verts[0].p + s_simplex.verts[1].p + s_simplex.verts[2].p) / 3.0f;
-				vector3 ACD_center = (s_simplex.verts[0].p + s_simplex.verts[2].p + s_simplex.verts[3].p) / 3.0f;
-				vector3 DBA_center = (s_simplex.verts[3].p + s_simplex.verts[1].p + s_simplex.verts[0].p) / 3.0f;
-				vector3 BDC_center = (s_simplex.verts[1].p + s_simplex.verts[2].p + s_simplex.verts[3].p) / 3.0f;
-				glBegin(GL_LINES);
-				glVertex3fv((GLfloat*)&ABC_center);
-				glVertex3fv((GLfloat*)&origin);
-				glVertex3fv((GLfloat*)&ACD_center);
-				glVertex3fv((GLfloat*)&origin);
-				glVertex3fv((GLfloat*)&DBA_center);
-				glVertex3fv((GLfloat*)&origin);
-				glVertex3fv((GLfloat*)&BDC_center);
-				glVertex3fv((GLfloat*)&origin);
-				glEnd();
-
-				glBegin(GL_POINTS);
-				glColor3f(1.0f, 0.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s_simplex.verts[0].p);
-				glColor3f(0.0f, 1.0f, 0.0f);
-				glVertex3fv((GLfloat*)&s_simplex.verts[1].p);
-				glColor3f(0.0f, 0.0f, 1.0f);
-				glVertex3fv((GLfloat*)&s_simplex.verts[2].p);
-				glColor3f(1.0f, 0.0f, 1.0f);
-				glVertex3fv((GLfloat*)&s_simplex.verts[3].p);
-				glEnd();
 			}
 			break;
 		}
@@ -310,6 +293,16 @@ static void Draw()
 	else
 	{
 		DebugDraw_AddString("Model View", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("Arrow Keys - Move sphere", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("WASDQE - Move camera", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("LMB=pitch, RMB=roll, MMB=yaw", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("T - advance algorithm", 0, textPos, TEXT_COLOR_WHITE);
+		textPos += text_height;
+		DebugDraw_AddString("Z - switch view", 0, textPos, TEXT_COLOR_WHITE);
 		textPos += text_height;
 
 		GLfloat lightPos[][3] = {
@@ -348,16 +341,16 @@ static void Draw()
 		glEnable(GL_LIGHTING);
 		{
 			matrix4 m = s_circle.m_phys->GetTransform();
-			m = m.t();
+			m.transpose();
 			DrawParams p;
-			p.drawType = DrawType_Triangles;
+			p.drawType = DrawType_WireFrame;
 			p.color = vector4(0.0f, 0.2f, 0.0f, 0.7f);
 			s_circle.m_geo->Draw(m, &p);
 		}
 
 		{
 			matrix4 m = s_board.m_phys->GetTransform();
-			m = m.t();
+			m.transpose();
 			DrawParams p;
 			p.drawType = DrawType_Triangles;
 			p.color = vector4(0.2f, 0.0f, 0.0f, 0.7f);
@@ -375,7 +368,13 @@ static void Draw()
 
 	if (s_collisionFound)
 	{
-		// TODO: draw the penetration direction , see test_2d
+		matrix4 m = s_circle.m_phys->GetTransform();
+		m.translate(s_collisionData.penetrationDirection * s_collisionData.depth);
+		m.transpose();
+		DrawParams p;
+		p.drawType = DrawType_WireFrame;
+		p.color = DrawColor_Blue;
+		s_circle.m_geo->Draw(m, &p);
 	}
 
 }
@@ -392,7 +391,7 @@ static void CreateCircle()
 	//physData.m_initialRotation = { 0.359199494f, 20.3241673f, -0.861259818f };
 	//physData.m_initialPosition = { 0.f, 8.72999573f, 0.f };
 	//physData.m_initialRotation = { 0.f, 20.f, 0.f };
-	physData.m_initialPosition = { 0.f, 10.f, 0.f };
+	physData.m_initialPosition = { 0.f, 3.f, 0.f };
 	physData.m_initialRotation = { 0.f, 0.f, 0.f };
 	physData.m_mass = 10.0f;
 	physData.m_elasticity = 0.4f;
@@ -408,15 +407,13 @@ static void CreateCircle()
 
 static void CreateBoard()
 {
-	s_board.m_geo = new BoxGeometry(50.f,50.f,2.f);
-
-	constexpr float CIRCLE_SIZE = 5.0f;
+	s_board.m_geo = new BoxGeometry(50.f,50.f,0.1f);
 
 	StaticPhysicsData physData;
 	physData.m_elasticity = 0.0f;
-	physData.m_gravity = { 0.0f,-1.0f,0.0f };
+	physData.m_gravity = { 0.0f,0.0f,0.0f };
 	physData.m_collisionResponseType = COLLISION_RESPONSE_NONE;
-	physData.m_initialPosition = { 0.0f, -1.0f, 0.0f };
+	physData.m_initialPosition = { 0.0f, 0.0f, 0.0f };
 	physData.m_initialRotation = { 0.0f };
 
 	s_board.m_phys = new Physics(s_board.m_geo, physData);

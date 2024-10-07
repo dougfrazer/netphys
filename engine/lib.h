@@ -30,6 +30,8 @@
 
 // todo: see christer ericson's 2005 GDC talk for better implementations
 static inline bool FloatEquals(float a, float b, float tolerance = KINDA_CLOSE_ENOUGH) { return fabsf(a - b) < (tolerance * max(1.0f, max(fabsf(a), fabsf(b)))); }
+static inline bool FloatLessThanEquals(float a, float b, float tolerance = KINDA_CLOSE_ENOUGH) { return a < b || FloatEquals(a,b); }
+static inline bool FloatGreaterThanEquals(float a, float b, float tolerance = KINDA_CLOSE_ENOUGH) { return a > b || FloatEquals(a, b); }
 static inline bool different_sign(float a, float b) { return a * b < 0.0f; }
 static inline bool same_sign(float a, float b) { return a * b >= 0.0f; }
 

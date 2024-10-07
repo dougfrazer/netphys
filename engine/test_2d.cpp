@@ -39,8 +39,8 @@ void ResetSimplex()
 	s_collisionParams.bTransform = s_boxTransform;
 	s_simplex.verts.clear();
 	s_simplex.verts.resize(1);
-	s_simplex.verts[0].A = s_triangle.GetPointFurthestInDirection({1,0,0}, s_triangleTransform);
-	s_simplex.verts[0].B = s_box.GetPointFurthestInDirection({-1,0,0}, s_boxTransform);
+	s_simplex.verts[0].A = s_triangle.GetPointFurthestInDirection({1,0,0}, s_triangleTransform, false);
+	s_simplex.verts[0].B = s_box.GetPointFurthestInDirection({-1,0,0}, s_boxTransform, false);
 	s_simplex.verts[0].p = s_simplex.verts[0].A - s_simplex.verts[0].B;
 	s_result = COLLISION_RESULT_NONE;
 	s_collisionFound = false;
@@ -48,7 +48,7 @@ void ResetSimplex()
 	s_collisionData.penetrationDirection = vector3();
 }
 //-------------------------------------------------------------------------------------------------
-static void ProcessInput(float dt)
+static void HandleInput(float dt)
 {
 	if (Platform_InputChangedDown('Z'))
 	{
@@ -63,14 +63,14 @@ static void ProcessInput(float dt)
 			case COLLISION_RESULT_NONE:
 			case COLLISION_RESULT_CONTINUE:
 			{
-				s_result = DetectCollisionStep2D(s_collisionParams, s_simplex);
+				s_result = DetectCollisionStep(s_collisionParams, false, s_simplex);
 			}
 			break;
 
 			case COLLISION_RESULT_NO_OVERLAP:
 			case COLLISION_RESULT_OVERLAP:
 			{
-				s_collisionFound = FindIntersectionPoints2D(s_collisionParams, s_simplex, 1, &s_collisionData);
+				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, 1, false, &s_collisionData);
 			}
 			break;
 
@@ -122,7 +122,7 @@ static void ProcessInput(float dt)
 //-------------------------------------------------------------------------------------------------
 static void Update(float dt)
 {
-	ProcessInput(dt);
+	HandleInput(dt);
 }
 //-------------------------------------------------------------------------------------------------
 static void GetMinkowskiDifference(vector3* diff)
@@ -338,7 +338,7 @@ static void Draw()
 			vector3 a = s_triangle.m_mesh.m_vertexPos[0];
 			vector3 b = s_triangle.m_mesh.m_vertexPos[1];
 			vector3 c = s_triangle.m_mesh.m_vertexPos[2];
-			vector3 arrow_start = s_triangleTransform * ClosestPointTrianglePoint(penetration_offset * 10.0f, a, b, c);
+			vector3 arrow_start = s_triangleTransform * ClosestPoint_TrianglePoint(penetration_offset * 10.0f, a, b, c);
 			DrawArrow(arrow_start, arrow_start + penetration_offset);
 
 			// draw a shadow triangle if we moved it by penetration distance in penetration direction

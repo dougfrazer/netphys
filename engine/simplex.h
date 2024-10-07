@@ -6,10 +6,10 @@ struct SimplexPoint
 {
 	vector3 p;
 	vector3 A;
-	int a_index;
+	//int a_index;
 	vector3 B;
-	int b_index;
-	float edgeWeight;
+	//int b_index;
+	//float edgeWeight;
 };
 struct Simplex
 {

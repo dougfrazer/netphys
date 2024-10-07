@@ -89,6 +89,9 @@
     <ClCompile Include="physics_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="test_util.cpp">
+      <Filter>Test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="todo.txt" />

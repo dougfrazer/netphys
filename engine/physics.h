@@ -77,7 +77,7 @@ public:
     COLLISION_RESPONSE GetCollisionResponse() const { return m_static.m_collisionResponseType; }
     const Geometry* GetGeometry() const { return m_geometry; }
     
-    void ApplyImpulseResponse(CollisionData& data, bool pushOut);
+    void ApplyImpulseResponse(CollisionData& data, vector3 normal);
 
 #ifdef TEST_PROGRAM
     void SetPosition(const vector3& v) { m_position = v; }
@@ -107,8 +107,7 @@ struct CollisionParams
     matrix4  aTransform;
     matrix4  bTransform;
 };
-bool DetectCollision2D(const CollisionParams& params, CollisionData* outCollision);
-bool DetectCollision3D(const CollisionParams& params, CollisionData* outCollision);
+bool DetectCollision(const CollisionParams& params, bool is3D, CollisionData* outCollision);
 // separated out for testing purposes
 #ifdef TEST_PROGRAM
 enum COLLISION_RESULT
@@ -119,9 +118,7 @@ enum COLLISION_RESULT
     COLLISION_RESULT_NO_OVERLAP,
     COLLISION_RESULT_CONTINUE,
 };
-COLLISION_RESULT DetectCollisionStep2D(const CollisionParams& params, struct Simplex& simplex);
-COLLISION_RESULT DetectCollisionStep3D(const CollisionParams& params, struct Simplex& simplex);
+COLLISION_RESULT DetectCollisionStep(const CollisionParams& params, bool is3D, struct Simplex& simplex);
+bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, int max_steps, bool is3D, CollisionData* outCollision);
 vector3 GetSearchDirection(const struct Simplex& simplex);
-bool FindIntersectionPoints2D(const CollisionParams& params, Simplex& simplex, int max_steps, CollisionData* outCollision);
-bool FindIntersectionPoints3D(const CollisionParams& params, Simplex& simplex, int max_steps, CollisionData* outCollision);
 #endif

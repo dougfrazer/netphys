@@ -2,164 +2,220 @@
 
 #include "vector.h"
 
-static float FindClosestPointOnLineToPoint(const vector3& point, const vector3& line_start, const vector3& line_end)
+
+//  
+//           |                      |
+// region A  |       region AB      |  region B
+//           A                      B
+//  u<0      *----------------------*   u>1
+//           |                      |
+enum LineRegion
 {
-	const vector3 ap = point - line_start;
-	const vector3 ab = line_end - line_start;
-	return ap.dot(ab) / ab.dot(ab);
+	LineRegion_AB = 0,
+	LineRegion_A,
+	LineRegion_B,
+};
+inline LineRegion ClosestPoint_LinePointRatio(const vector3& p, const vector3& a, const vector3& b, float& u)
+{
+	const vector3 ap = p - a;
+	const vector3 ab = b - a;
+
+	u = ap.dot(ab) / ab.dot(ab);
+
+	if (u <= 0.0f)
+	{
+		u = 0.0f;
+		return LineRegion_A;
+	}
+	if (u >= 1.0f)
+	{
+		u = 1.0f;
+		return LineRegion_B;
+	}
+
+	return LineRegion_AB;
 }
 
-static vector3 ClosestPointLinePoint(const vector3& p, const vector3& a, const vector3& b)
+inline vector3 ClosestPoint_LinePoint(const vector3& p, const vector3& a, const vector3& b)
 {
-	float ratio = FindClosestPointOnLineToPoint(p, a, b);
-	return a + (b - a) * ratio;
+	float u;
+	ClosestPoint_LinePointRatio(p, a, b, u);
+	return a + (b - a) * u;
 }
 
-static float LinePointDistanceSq(const vector3& p, const vector3& a, const vector3& b)
+inline float LinePointDistanceSq(const vector3& p, const vector3& a, const vector3& b)
 {
-	vector3 c = ClosestPointLinePoint(p, a, b);
+	vector3 c = ClosestPoint_LinePoint(p, a, b);
 	return (p - c).magnitude_sq();
 }
 
-static float LinePointDistance(const vector3& p, const vector3& a, const vector3& b)
+inline float LinePointDistance(const vector3& p, const vector3& a, const vector3& b)
 {
-	vector3 c = ClosestPointLinePoint(p, a, b);
+	vector3 c = ClosestPoint_LinePoint(p, a, b);
 	return (p - c).magnitude();
 }
 
 //
 //  See: https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
 // 
-//  We can represent any point in 2D space as
+//  Any point on triangle can be represented as
 //    T(u,v) = A + u(B-A) + v(C-A)
 //	where A,B,C form a valid triangle
-//  that is to say: any point can be represented as one point in the triangle
-//  plus some scalar times each of the edges
+//  that is to say: any point on the triangle can be represented as 
+//  one point in the triangle plus some scalar times each of the edges
 //
 //  Furthermore, we can represent the distance between a point on the triangle
 //  and an arbitrary point P as:
 //    Q(u,v) = | T(u,v) - P |
 //  or, as the squared distance, which correlates directly to the distance:
 //    Q'(u,v) = | T(u,v) - P |^2
-//  which we can expand using the dot product identity
+//  which we can expand using the dot product identity ( a dot a = |a|^2 )
 //    Q'(u,v) = (T(u,v) - P) dot (T(u,v) - P)
-//            = (P dot P) - 2(P dot T(u,v)) + T(u,v) dot T(u,v)
-//            = (P)dot(P) - 2(P dot (A + u(B-A) + v(C-A)) + (A + u(B-A) + v(C-A))dot(A + u(B-A) + v(C-A))
-// simplify notation using:
-//  B = B - A
-//  C = C - A
-//            = P.P - 2(P.A + uP.B + vP.C) + (A.A + 2uA.B + 2vA.C + u^2B.B + 2uvB.C + v^2C.C)
-//            = P.P - 2P.A + 2uP.B + 2vP.C + (A.A + 2uA.B + 2vA.C + u^2B.B + 2uvB.C + v^2C.C)
-//            = u^2B.B + v^2C.C + 2uvB.C + 2u(A.B + P.B) + 2v(P.C + A.C) + (P.P - 2P.A + A.A)
-//
-// simplify notation using:
-//  a = B.B
-//  b = C.C
-//  c = B.C
-//  d = A.B + P.B
-//  e = A.C + P.C
-//  f = (P.P - 2P.A + A.A)
-//
-//    Q'(u,v) = au^2 + bv^2 + 2cuv + 2du + 2ev + f
+//   and further expand due to its distributive property
+//            = T(u,v) dot (T(u,v) - P)         -      P dot (T(u,v) - P)
+//            = T(u,v) dot T(u,v) - T(u,v) dot P  - P dot T(u,v) + P dot P
+//   and it is also commutative
+//            = T(u,v) dot T(u,v) - P dot T(u,v) - P dot T(u,v) + P dot P
+//            = T(u,v) dot T(u,v) - 2 * P dot T(u,v) + P dot P
+//   substitute in T(u,v) = A + u(B-A) + v(C-A)
+//            = (A + u(B-A) + v(C-A)) dot (A + u(B-A) + v(C-A)) - 2 * P dot (A + u(B-A) + v(C-A)) + P dot P
+//   simplify notation using:
+//      B = B - A
+//      C = C - A
+//            = (A + uB + vC) dot (A + uB + vC) - 2 * P dot (A + uB + vC) + P dot P
+//            = A.A + A.uB + A.vC + uB.A + uB.uB + uB.vC + vC.A + vC.uB + vC.vC - 2*P.A - 2*P.uB - 2*P.vC + P.P
+//   combine like terms and pull scalars out
+//            = A.A + 2uA.B + 2vA.C + u^2B.B + 2uvB.C + v^2C.C - 2P.A - 2uP.B - 2vP.C + P.P
+//   combine like terms by scalers
+//            = u^2(B.B) + v^2(C.C) + 2uv(B.C) + 2u(A.B - P.B) + 2v(A.C - P.C) + (A.A - 2*P.A + P.P)
+//           
+//   simplify notation using:
+//      a = B.B
+//      b = C.C
+//      c = 2*(B.C)
+//      d = 2*(A.B - P.B)
+//      e = 2*(A.C - P.C)
+//      f = A.A - 2*P.A + P.P
+// 	          = au^2 + bv^2 + cuv + du + ev + f
 // 
 // we can find the roots of this quadratic by finding where the gradient is zero
+//   Q'(u,v) = au^2 + bv^2 + cuv + du + ev + f
 // 
 // I just used wolfram-alpha to solve these... type it in like this
-// 
-// grad(Q') = grad(au^2 + bv^2 + 2cuv + 2du + 2ev + f) = 2(ax + cy + d), 2(by + cx + e)
-// solve(ax + cy + d=0,by + cx + e=0)
+//       grad(ax^2 + by^2 + cxy + dx + ey + f)      (wolfram alpha prefers x,y over u,v)
+//       = d + 2ax + cy , e + cx + 2by
+// Solve for when these are both zero, again using wolfram alpha
+//       solve(d + 2ax + cy = 0, e + cx + 2by = 0)
+//       
+//       denom = 4ab - c^2
+//       u = ec - 2bd / denom
+//       v = cd - 2ea / denom
+//       where denom != 0 and b != 0
 //
-// and we get solutions:
-//   u=(ec-bd)/(ab-c^2)
-//   v=(cd-ea)/(ab-c^2)
-// where ab!=c^2 and b!=0 - which should be true for a well-formed triangle
-//
+// -------------
+// Return Value:
+// -------------
 // will return an integer representing the region the point is in, and fill out the uv's appropriately
-// 
-// the 'regions' represent what the point is closest to: either a vertex, an edge, or within the triangle
-// regions are: A=1, B=2, C=3, AB=4, AC=5, ABC=0 (ABC means the point is within the triangle)
-// it may also return if the point is ON the triangle... 6=AB 7=AC 8=AD
-static int ClosestPointTrianglePointRatio(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc, float& u, float& v)
+//             
+//          |  
+//      3   |
+//          |
+//  ------- * C
+//          |\
+//          | \    6
+//      5   |  \
+//          | 0 \
+//          |    \
+// ------ A *-----* B -------
+//          |     |   
+//     1    |  4  |    2
+
+enum TriangleRegion
 {
+	TriangleRegion_ABC = 0, //  inside the triangle
+	TriangleRegion_A,		//  closest point is A
+	TriangleRegion_B,		//  closest point is B
+	TriangleRegion_C,		//  closest point is C
+	TriangleRegion_AB,		//  closest edge is AB
+	TriangleRegion_AC,		//  closest edge is AC
+	TriangleRegion_BC,		//  closest edge is BC
+};
+
+inline TriangleRegion ClosestPoint_TrianglePointRatio(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc, float& u, float& v)
+{
+	// must provide 3 different points or its not a valid triangle
+	assert(va != vb);
+	assert(va != vc);
+	assert(vb != vc);
+
 	vector3 A = va;
 	vector3 B = vb - va;
 	vector3 C = vc - va;
 	float a = B.dot(B);
 	float b = C.dot(C);
-	float c = B.dot(C);
-	float d = A.dot(B) + p.dot(B);
-	float e = A.dot(C) + p.dot(C);
-	float f = p.dot(p) - 2*p.dot(A) + A.dot(A);
+	float c = 2*(B.dot(C));
+	float d = 2*(A.dot(B) - p.dot(B));
+	float e = 2*(A.dot(C) - p.dot(C));
+	float f = A.dot(A) - 2*p.dot(A) + p.dot(p);
 
-	float denom = a*b - c*c;
-	u = (e*c - b*d) / denom;
-	v = (c*d - e*a) / denom;
+	float denom = 4*a*b - c*c;
+	assert(!FloatEquals(denom, 0.0f));
+	assert(!FloatEquals(b, 0.0f));
 
-	if (u < 0.0f && v < 0.0f)
+	u = (e*c - 2*b*d) / denom;
+	v = (c*d - 2*e*a) / denom;
+
+	if (FloatLessThanEquals(u, 0.0f) && FloatLessThanEquals(v, 0.0f))
 	{
 		u = 0.0f;
 		v = 0.0f;
-		return 1;
+		return TriangleRegion_A;
 	}
 
-	if (u >= 1.0f && v < 0.0f)
+	if (FloatLessThanEquals(v,0.0f) && FloatGreaterThanEquals(u,1.0f))
 	{
 		u = 1.0f;
 		v = 0.0f;
-		return 2;
+		return TriangleRegion_B;
 	}
 
-	if (u < 0.0f && v >= 1.0f)
+	if (FloatLessThanEquals(u,0.0f) && FloatGreaterThanEquals(v,1.0f))
 	{
 		u = 0.0f;
 		v = 1.0f;
-		return 3;
+		return TriangleRegion_C;
 	}
 
-	if (u > 0.0f && u < 1.0f && v < 0.0f)
+	if (FloatLessThanEquals(v,0.0f) && u > 0.0f && FloatLessThanEquals(u, 1.0f))
 	{
 		v = 0.0f;
-		return 4;
+		return TriangleRegion_AB;
 	}
 
-	if (u < 0.0f && v > 0.0f && v < 1.0f)
+	if (FloatLessThanEquals(u, 0.0f) && v > 0.0f && FloatLessThanEquals(v, 1.0f))
 	{
 		u = 0.0f;
-		return 5;
-	}
-
-	if (FloatEquals(u + v, 1.0f))
-	{
-		return 7;
+		return TriangleRegion_AC;
 	}
 
 	if (u + v > 1.0f)
 	{
-		float divisor = u + v;
-		u = u / divisor;
-		v = v / divisor;
-		return 5;
-	}
-
-	if (FloatEquals(v, 0.0f))
-	{
-		return 6;
-	}
-
-	if (FloatEquals(u, 0.0f))
-	{
-		return 7;
+		float denom = 1.0f / (u + v);
+		u *= denom;
+		v *= denom;
+		return TriangleRegion_BC;
 	}
 
 	assert(u > 0.0f && v > 0.0f);
 	assert(u < 1.0f && v < 1.0f);
-	return 0;
+
+	return TriangleRegion_ABC;
 }
 
-static vector3 ClosestPointTrianglePoint(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc)
+inline vector3 ClosestPoint_TrianglePoint(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc)
 {
 	float u,v;
-	ClosestPointTrianglePointRatio(p, va, vb, vc, u,v);
+	ClosestPoint_TrianglePointRatio(p, va, vb, vc, u,v);
 	return va + (vb-va)*u + (vc-va)*v;
 }
 
@@ -201,20 +257,26 @@ static vector3 ClosestPointTrianglePoint(const vector3& p, const vector3& va, co
 //          = 2(ax + dy + ez + g), 2(by + dx + fz + h), 2(cz + ex + fy + i)
 //
 //	solve(au + dv + ew + g = 0, bv + du + fw + h = 0, cw + eu + fv + i = 0)
-// .. actual wolfram alpha input because it didnt like f,i,u,v,w:
-//	solve(a*x + d*y + e*z + g = 0, b*y + d*x + m*z + h = 0, c*z + e*x + m*y + n = 0)
 // 
-// denom = (abc - af^2 - be^2 - cd^2 + 2def);
-// u = (-bcg + bei + cdh - dfi - ehf + gf^2) / denom
-// v = (-ach + afi + cdg - dei + he^2 - egf) / denom 
-// w = (-abi + ahf + beg + id^2 - deh - dgf) / denom 
+//  Wolfram alpha input:
+//	  solve(a*u + d*v + e*w + g = 0, b*v + d*u + f*w + h = 0, c*w + e*u + f*v + i = 0) for u,v,w
+//  Wolfram alpha output:
+//    u = -(b c g - b e i - c d h + d f i + e f h + f^2 (-g))/(a b c - a f^2 - b e^2 - c d^2 + 2 d e f), 
+//    v = -(-a c h + a f i + c d g - d e i + e^2 h - e f g)/(-a b c + a f^2 + b e^2 + c d^2 - 2 d e f), 
+//    w = -(-a b i + a f h + b e g + d^2 i - d e h - d f g)/(-a b c + a f^2 + b e^2 + c d^2 - 2 d e f)
+//  
+//  Or written more simply:
+//    denom = abc - aff - bee - cdd + 2def;
+//    u = -bcg + bei + cdh - dfi - efh + gff / denom
+//    v =  ach + afi + cdg - dei - eeh - efg / denom
+//    w = -abi + afh + beg + ddi + deh - dfg / denom
 // 
-// with constraints:
-// abc - af^2 - be^2 - cd^2 + 2def != 0
-// be - df != 0
-// c != 0
-// which should be geometrically provable for well-formed triangle?  todo: look into this
-// 
+//  I think we have the constraints:
+//   denom != 0
+//   be - df != 0
+//   c != 0
+//  Which if we hit it I think means that our inputs are not solvable (i.e. a straight line, or multiple of the same point)
+//  TODO: look into above
 // 
 // 15 regions:
 // - region A,B,C,D - it is further towards a single point than any other
@@ -226,7 +288,28 @@ static vector3 ClosestPointTrianglePoint(const vector3& p, const vector3& va, co
 // - region ABCD - it is within the tetrahedron
 //  --> return value 0
 //
-static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc, const vector3& vd, float& u, float& v, float& w)
+enum TetrahedronRegion
+{
+	TetrahedronRegion_None = -1,
+
+	TetrahedronRegion_ABCD = 0,
+	TetrahedronRegion_A,
+	TetrahedronRegion_B,
+	TetrahedronRegion_C,
+	TetrahedronRegion_D,
+	TetrahedronRegion_AB,
+	TetrahedronRegion_AC,
+	TetrahedronRegion_AD,
+	TetrahedronRegion_BC,
+	TetrahedronRegion_BD,
+	TetrahedronRegion_CD,
+	TetrahedronRegion_ABC,
+	TetrahedronRegion_ABD,
+	TetrahedronRegion_ACD,
+	TetrahedronRegion_BCD,
+};
+
+inline TetrahedronRegion ClosestPoint_TetrahedronPointRatio(const vector3& p, const vector3& va, const vector3& vb, const vector3& vc, const vector3& vd, float& u, float& v, float& w)
 {
 	vector3 P = p;
 	vector3 A = va;
@@ -244,23 +327,26 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	float i = A.dot(D) - P.dot(D);
 	float j = P.dot(P) - 2*P.dot(A) + A.dot(A);
 	
-	// could wait to do divide until we know we need to... but easier to read this way
+
 	float denom = (a*b*c - a*f*f - b*e*e - c*d*d + 2*d*e*f);
+	if (FloatEquals(denom, 0.f))
+	{
+		// malformed input?  all points in a line? we definately can't continue and divide by zero
+		return TetrahedronRegion_None;
+	}
+
+	// could wait to do divide until we know we need to... but easier to read this way
 	u = (-b*c*g + b*e*i + c*d*h - d*f*i - e*h*f + g*f*f) / denom;
 	v = (-a*c*h + a*f*i + c*d*g - d*e*i + h*e*e - e*g*f) / denom;
 	w = (-a*b*i + a*h*f + b*e*g + i*d*d - d*e*h - d*g*f) / denom;
 	
-	assert(!FloatEquals(a*b*c + 2*d*e*f , a*f*f + b*e*e + c*d*d));
-	assert(!FloatEquals(b*e, d*f));
-	assert(!FloatEquals(c,0.0f));
-
 	// region A
 	if (u <= 0.0f && v <= 0.0f && w <= 0.0f)
 	{
 		u = 0.0f;
 		v = 0.0f;
 		w = 0.0f;
-		return 1;
+		return TetrahedronRegion_A;
 	}
 	// region B
 	if (u >= 1.0f && v <= 0.0f && w <= 0.0f)
@@ -268,7 +354,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		u = 1.0f;
 		v = 0.0f;
 		w = 0.0f;
-		return 2;
+		return TetrahedronRegion_B;
 	}
 	// region C
 	if (u <= 0.0f && v >= 1.0f && w <= 0.0f)
@@ -276,7 +362,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		u = 0.0f;
 		v = 1.0f;
 		w = 0.0f;
-		return 3;
+		return TetrahedronRegion_C;
 	}
 	// region D
 	if (u <= 0.0f && v <= 0.0f && w >= 1.0f)
@@ -284,31 +370,31 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		u = 0.0f;
 		v = 0.0f;
 		w = 1.0f;
-		return 4;
+		return TetrahedronRegion_D;
 	}
 	// region AB
 	if (u >= 0.0f && u <= 1.0f && v <= 0.0f && w <= 0.0f)
 	{
 		v = 0.0f;
 		w = 0.0f;
-		return 5;
+		return TetrahedronRegion_AB;
 	}
 	// region AC
 	if (u <= 0.0f && v >= 0.0f && v <= 1.0f && w <= 0.0f)
 	{
 		u = 0.0f;
 		w = 0.0f;
-		return 6;
+		return TetrahedronRegion_AC;
 	}
 	// region AD
 	if (u <= 0.0f && v <= 0.0f && w >= 0.0f && w <= 1.0f)
 	{
 		u = 0.0f;
 		v = 0.0f;
-		return 7;
+		return TetrahedronRegion_AD;
 	}
 
-	// either region AB or ABC
+	// either region BC or ABC
 	if (u >= 0.0f && v >= 0.0f && w <= 0.0f)
 	{
 		w = 0.0f;
@@ -317,9 +403,9 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 			float divisor = u + v;
 			u = u / divisor;
 			v = v / divisor;
-			return 8;
+			return TetrahedronRegion_BC;
 		}
-		return 11;
+		return TetrahedronRegion_ABC;
 	}
 
 	// either region BD or ABD
@@ -331,12 +417,12 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 			float divisor = u + w;
 			u = u / divisor;
 			w = w / divisor;
-			return 9;
+			return TetrahedronRegion_BD;
 		}
-		return 12;
+		return TetrahedronRegion_ABD;
 	}
 
-	// either AC or ACD
+	// either CD or ACD
 	if (u <= 0.0f && v >= 0.0f && w >= 0.0f)
 	{
 		u = 0.0f;
@@ -345,9 +431,9 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 			float divisor = v + w;
 			v = v / divisor;
 			w = w / divisor;
-			return 10;
+			return TetrahedronRegion_CD;
 		}
-		return 13;
+		return TetrahedronRegion_ACD;
 	}
 
 	assert(u > 0.0f && v > 0.0f && w > 0.0f);
@@ -358,7 +444,7 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 		u = u / divisor;
 		v = v / divisor;
 		w = w / divisor;
-		return 14;
+		return TetrahedronRegion_BCD;
 	}
 
 	assert(u < 1.0f && v < 1.0f && w < 1.0f);
@@ -367,5 +453,62 @@ static int ClosestPointTetrahedronPointRatio(const vector3& p, const vector3& va
 	// and the total sum doesn't push it outside the tetrahedron
 	// therefore the point must be within the tetrahedron and the weights must
 	// be correct
-	return 0;
+	return TetrahedronRegion_ABCD;
 }
+
+
+//******************************************************************************
+inline vector3 GetDirectionToOrigin(const vector3& a)
+{
+	return -a;
+}
+//******************************************************************************
+inline vector3 GetDirectionToOrigin(const vector3& a, const vector3& b)
+{
+	vector3 ab = b - a;
+	vector3 ao = -b;
+	vector3 t = ab.cross(ao);
+	vector3 bt = t.cross(ab);
+	float sign = bt.dot(ao);
+	if (FloatEquals(sign, 0.0f))
+	{
+		// the origin lies on the line ab
+		vector3 abt = ab.cross({ 0,0,1 });
+		if (abt.magnitude_sq() == 0.0f)
+		{
+			// another edge case... ab happens to have no Z component
+			return ab.cross({ 0,1,0 });
+		}
+		return abt;
+	}
+
+	return (sign < 0.0f) ? -bt : bt;
+}
+//******************************************************************************
+inline vector3 GetDirectionToOrigin(const vector3& a, const vector3& b, const vector3& c)
+{
+	vector3 ab = b - a;
+	vector3 ac = c - a;
+	vector3 ao = -a;
+	vector3 n = ab.cross(ac);
+	float sign = n.dot(ao);
+
+	if (FloatEquals(sign, 0.0f))
+	{
+		// the origin lies on the triangle ABC
+		vector3 abt = ab.cross({ 0,0,1 });
+		if (abt.magnitude_sq() == 0.0f)
+		{
+			// another edge case... ab happens to have no Z component
+			return ab.cross({ 0,1,0 });
+		}
+		return abt;
+	}
+
+	return (sign < 0.0f) ? -n : n;
+}
+
+//========================================================================
+// Public APIs
+//========================================================================
+void Util_Test();

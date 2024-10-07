@@ -111,7 +111,7 @@ public:
         y = 0.0f;
         z = 0.0f;
     }
-    vector3(const float v)
+    explicit vector3(const float v)
     {
         x = v;
         y = v;
@@ -178,6 +178,10 @@ public:
     {
         return FloatEquals(x,b.x) && FloatEquals(y,b.y) && FloatEquals(z,b.z);
     }
+	bool operator!=(const vector3& b) const
+	{
+		return !(*this == b);
+	}
     float    dot(const vector3& B) const
     {
         return x * B.x + y * B.y + z * B.z;

@@ -183,8 +183,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         case WM_KEYDOWN:
         {
+            // see https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 			char c = (char)(wParam);
-			//assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
 
 			if (c >= 'A' && c <= 'Z')
 			{
@@ -204,6 +204,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				case VK_RIGHT:  s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_RIGHT - ARROW_INPUT_FIRST)); break;
 				case VK_DOWN:   s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_DOWN  - ARROW_INPUT_FIRST)); break;
 				case VK_UP:     s_mostRecentInput.inputMask.arrows |= (1ull << (ARROW_KEY_UP    - ARROW_INPUT_FIRST)); break;
+				case VK_NUMPAD0:  // unsupported - 0x60	Numeric keypad 0
+				case VK_NUMPAD1:  // unsupported - 0x61	Numeric keypad 1
+				case VK_NUMPAD2:  // unsupported - 0x62	Numeric keypad 2
+				case VK_NUMPAD3:  // unsupported - 0x63	Numeric keypad 3
+				case VK_NUMPAD4:  // unsupported - 0x64	Numeric keypad 4
+				case VK_NUMPAD5:  // unsupported - 0x65	Numeric keypad 5
+				case VK_NUMPAD6:  // unsupported - 0x66	Numeric keypad 6
+				case VK_NUMPAD7:  // unsupported - 0x67	Numeric keypad 7
+				case VK_NUMPAD8:  // unsupported - 0x68	Numeric keypad 8
+				case VK_NUMPAD9:  // unsupported - 0x69	Numeric keypad 9
 				default: break;
 				}
             }
@@ -213,7 +223,6 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 		case WM_KEYUP:
 		{
 			char c = (char)(wParam);
-            assert(c < 'a' || c > 'z'); // pretty sure we don't get lower case characters
 
 			if (c >= 'A' && c <= 'Z')
 			{
@@ -373,14 +382,12 @@ void Platform_Run(const PlatformParams& params)
     assert(success == TRUE);
 
     auto frameEnd = std::chrono::high_resolution_clock::now();
-    constexpr float MAX_FPS_MS = (1000.f / 60.f);
-
+    
     // TODO: separate threads?
     while(s_running)
     {
-		auto frameStart = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> delta_ms = (frameStart - frameEnd);
-		float dt = min(MAX_FPS_MS, (float)(delta_ms.count())) / 1000.f;
+        auto frameStart = std::chrono::high_resolution_clock::now();
+		float dt = params.tickLengthMs / 1000.f;
         
         // handle windows messages
         MSG msg;
@@ -406,15 +413,24 @@ void Platform_Run(const PlatformParams& params)
       
         EndFrame();
 
-		// sleep if necessary
+		// sleep to match our tick rate
 		frameEnd = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
-		if (frameTime.count() < MAX_FPS_MS)
-		{
-			std::chrono::duration<double, std::milli> delta_ms(MAX_FPS_MS - frameTime.count());
-			auto delta_ms_duration = std::chrono::duration_cast<std::chrono::milliseconds>(delta_ms);
-			std::this_thread::sleep_for(std::chrono::milliseconds(delta_ms_duration.count()));
-		}
+        
+        if (!IsDebuggerPresent())
+        {
+            // make sure this tick didn't take too long
+			// print out some kind of error?  we want to tick our simulation at a fixed
+	        // tick rate, if it takes longer in real time than the fixed tick rate to
+	        // run the simulation we'll get drift
+	        // TODO for the future is to allow render/animation at variable/maximum tick rate
+	        // but do physics/deterministic simulation at fixed tick rate
+            assert(frameTime.count() < params.tickLengthMs);
+        }
+        
+		std::chrono::duration<double, std::milli> delta_ms(params.tickLengthMs - frameTime.count());
+		auto delta_ms_duration = std::chrono::duration_cast<std::chrono::milliseconds>(delta_ms);
+		std::this_thread::sleep_for(std::chrono::milliseconds(delta_ms_duration.count()));
     }
 
     DestroyWindow(window);

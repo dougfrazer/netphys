@@ -24,11 +24,10 @@ class Mesh
 public:
     void AddVertex(const vector3& pos, const vector3& normal);
     void AddTriangle(const vector3& a, const vector3& b, const vector3& c, const vector3& n);
-    //void AddTriangle(const vertex& a, const vertex& b, const vertex& c);
 public: 
 	std::vector<vector3> m_vertexPos;      //
     std::vector<vector3> m_vertexNormals;  // should be same size as vertexPos
-    std::vector<int>     m_indices;        // index into above arrays for each point
+    std::vector<unsigned int>     m_indices;        // index into above arrays for each point
 };
 
 //******************************************************************************
@@ -40,10 +39,16 @@ enum DrawType
     DrawType_Triangles,
     DrawType_WireFrame,
 };
+
+static const vector4 DrawColor_Red  (1.0f, 0.0f, 0.0f, 1.0f);
+static const vector4 DrawColor_Green(0.0f, 1.0f, 0.0f, 1.0f);
+static const vector4 DrawColor_Blue (0.0f, 0.0f, 1.0f, 1.0f);
+static const vector4 DrawColor_White(1.0f, 1.0f, 1.0f, 1.0f);
+
 struct DrawParams
 {
     DrawType drawType = DrawType_Triangles;
-	vector4 color = {1.0f,1.0f,1.0f,1.0f};
+	vector4 color = DrawColor_White;
 };
 
 class Geometry
@@ -51,9 +56,7 @@ class Geometry
 public:
     virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
     // Support: Get further point in this shape in the direction specified (using the transform to world space specified)
-    vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, int *optional_out_index = nullptr) const;
-
-    virtual std::vector<vector3> GetAllPointsInDirection(const vector3& dir, const matrix4& world) const;
+    virtual vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const;
 public:
 	Mesh m_mesh;
 };
@@ -62,7 +65,7 @@ class SphereGeometry : public Geometry
 {
 public:
     SphereGeometry(float radius);
-    virtual std::vector<vector3> GetAllPointsInDirection(const vector3& dir, const matrix4& world) const override;
+    vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const override;
 public:
     const float m_radius;
 };

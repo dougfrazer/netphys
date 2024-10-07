@@ -5,6 +5,7 @@
 #include <vector>
 #include "windows.h"
 #include "physics_util.h"
+#include "util.h"
 
 #include <gl/GL.h>
 #include <gl/GLU.h>
@@ -19,13 +20,6 @@ void Mesh::AddTriangle(const vector3& a, const vector3& b, const vector3& c, con
     AddVertex(c,n);
 }
 //-------------------------------------------------------------------------------------------------
-//void Mesh::AddTriangle(const vertex& a, const vertex& b, const vertex& c)
-//{
-//    AddVertex(a);
-//    AddVertex(b);
-//    AddVertex(c);
-//}
-//-------------------------------------------------------------------------------------------------
 void Mesh::AddVertex(const vector3& pos, const vector3& normal)
 {
     for (int i = 0; i < m_vertexPos.size(); i++)
@@ -38,7 +32,7 @@ void Mesh::AddVertex(const vector3& pos, const vector3& normal)
     }
     int index = (int)m_vertexPos.size();
     m_vertexPos.push_back(pos);
-    m_vertexNormals.push_back(normal);
+    m_vertexNormals.push_back(normal.normalize());
     m_indices.push_back(index);
 }
 
@@ -162,6 +156,7 @@ void CreateIcosahadron(float r, int numSubdivisions, Mesh* outMesh)
 
     for (int i = 0; i < vertexList.size(); i++)
     {
+        // normal for a sphere centered at zero is the same as its position
         outMesh->AddVertex(vertexList[i], vertexList[i]);
     }
 }
@@ -190,48 +185,75 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixf((GLfloat*)&transform);
 
-	if (params)
-	{
-		glBegin(GetGLDrawFromDrawType(params->drawType));
-		glColor4fv((GLfloat*)&params->color);
-	}
-	else
-	{
-		glBegin(GL_TRIANGLES);
-		glColor3f(0.0, 1.0, 0.0);
-	}
-
-	for (int i = 0; i < m_mesh.m_indices.size(); i++)
-	{
-		glVertex3fv((GLfloat*)&m_mesh.m_vertexPos[m_mesh.m_indices[i]]);
-		glNormal3fv((GLfloat*)&m_mesh.m_vertexNormals[m_mesh.m_indices[i]]);
-	}
-	glEnd();
+    glEnable(GL_COLOR_MATERIAL);
+    GLfloat* color = (GLfloat*)(&params->color);
+    GLenum drawType = GetGLDrawFromDrawType(params->drawType);
+	glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+	glVertexPointer(3, GL_FLOAT, 0, &m_mesh.m_vertexPos[0]);
+    glNormalPointer(GL_FLOAT, 0, &m_mesh.m_vertexNormals[0]);
+    glColor4fv(color);
+	glDrawElements(drawType, m_mesh.m_indices.size(), GL_UNSIGNED_INT, &m_mesh.m_indices[0]);
+    glDisableClientState(GL_NORMAL_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
 
 	glPopMatrix();
 }
 //-------------------------------------------------------------------------------------------------
-vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, int* optional_out_index) const
+vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
 {
-    return PhysUtil_GetPointFurthestInDirection(m_mesh.m_vertexPos, dir, world, optional_out_index);
-}
-//-------------------------------------------------------------------------------------------------
-std::vector<vector3> Geometry::GetAllPointsInDirection(const vector3& dir, const matrix4& world) const
-{
-    std::vector<vector3> results;
+    // not sure this is right...
+    // try and get the farthest points (2 for 2d, 3 for 3d) then get
+    // the point on the shape formed that is closest to the origin in the
+    // direction specified
+    //struct dot_product_container
+    //{
+    //    float dot_product;
+    //    int vertex_index;
+    //};
+    //dot_product_container best_dot_products[3] = { -std::numeric_limits<float>::infinity() , -1 };
+    //
+    //float max_scale = 0.0f;
+    //
+	//for (int i = 0; i < m_mesh.m_vertexPos.size(); i++)
+	//{
+    //    // could probably just transform the dir into local space rather than each
+    //    // point into world space
+    //    const vector3& v = world * m_mesh.m_vertexPos[i];
+	//	float dot_product = dir.dot(v);
+	//	// what to do if two vertices are equally in the specified direction?
+	//	// i.e. dot_product == best_dot_product?
+	//	if (dot_product > best_dot_products[0].dot_product)
+	//	{
+    //        best_dot_products[2] = best_dot_products[1];
+    //        best_dot_products[1] = best_dot_products[0];
+    //        best_dot_products[0] = { dot_product, i };
+	//	}
+	//	else if (dot_product > best_dot_products[1].dot_product)
+	//	{
+    //        best_dot_products[2] = best_dot_products[1];
+    //        best_dot_products[1] = { dot_product, i };
+	//	}
+	//	else if (dot_product > best_dot_products[2].dot_product)
+	//	{
+    //        best_dot_products[2] = { dot_product, i };
+	//	}
+    //
+    //    max_scale = max(max(max(max_scale,v.x),v.y),v.z);
+	//}
+    //
+    //const vector3& va = m_mesh.m_vertexPos[best_dot_products[0].vertex_index];
+    //const vector3& vb = m_mesh.m_vertexPos[best_dot_products[1].vertex_index];
+    //const vector3& vc = m_mesh.m_vertexPos[best_dot_products[2].vertex_index];
+    //const vector3 targetPos = dir.normalize() * max_scale * 1.1f; // somewhere past the bounds of the model in the direction specified
+    //const vector3 result = is3D ? ClosestPoint_TrianglePoint(targetPos, va, vb, vc) : ClosestPoint_LinePoint(targetPos, va, vb);
+    //
+	//return result;
 
-	for (int i = 0; i < m_mesh.m_vertexPos.size(); i++)
-	{
-		vector3 world_pos = world * m_mesh.m_vertexPos[i];
-   		float dot_product = dir.dot(world_pos);
-
-        if (dot_product > 0.0f)
-        {
-            results.push_back(world_pos);
-        }
-	}
-
-	return results;
+    // the above doesn't work and i'm not totally sure why... it does find the correct point, but using
+    // that in the minkowski difference doesn't get the furthest point in the minkowski difference.
+    // reverting to what it was before...
+    return PhysUtil_GetPointFurthestInDirection(m_mesh.m_vertexPos, dir, world, nullptr);
 }
 //-------------------------------------------------------------------------------------------------
 SphereGeometry::SphereGeometry(float radius)
@@ -240,14 +262,21 @@ SphereGeometry::SphereGeometry(float radius)
 	CreateIcosahadron(radius, 3, &m_mesh);
 }
 //-------------------------------------------------------------------------------------------------
-std::vector<vector3> SphereGeometry::GetAllPointsInDirection(const vector3& dir, const matrix4& world) const
+vector3 SphereGeometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
 {
-    // this is probably wrong, if run from the center in any direction it should return half of the sphere, not just the one point
-    std::vector<vector3> r;
-	vector3 dir_normalized = dir.normalize();
-	vector3 circle_position = dir_normalized * m_radius;
-	r.push_back(world * circle_position);
-    return r;
+    // This should work...
+    // one of the strengths of GJK is that you should be able to describe shapes very precisely
+    // as long as you can answer the question "get the point furthest in this direction" for a shape.
+    // We should be able to perfectly represent the sphere, rather than the approximation we'd 
+    // have with the mesh.
+    // 
+    // TODO: uncomment and test
+    // 
+    //vector3 dir_normalized = dir.normalize();
+    //
+    //return world * dir_normalized * m_radius;
+
+    return Geometry::GetPointFurthestInDirection(dir, world, is3D);
 }
 //-------------------------------------------------------------------------------------------------
 BoxGeometry::BoxGeometry(float width, float depth, float height)

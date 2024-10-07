@@ -21,15 +21,15 @@ static struct
 } s_board;
 
 static bool s_run = false;
-static float s_fixedTimestep = 1.f/30.f;
+static bool s_tickOnce = false;
 
-static void ProcessInput(float dt)
+static void HandleInput(float dt)
 {
     Platform_BasicCameraInput(dt);
 	
     if (Platform_InputIsDown('T'))
 	{
-		Physics_Update(s_fixedTimestep);
+		s_tickOnce = true;
 	}
 
     if (Platform_InputIsDown('P'))
@@ -40,24 +40,27 @@ static void ProcessInput(float dt)
 
 static void Update(float dt)
 {
-    ProcessInput(dt);
-    if (s_run)
+    HandleInput(dt);
+
+    if (s_run || s_tickOnce)
     {
-        Physics_Update(s_fixedTimestep);
+        Physics_Update(dt);
     }
+    
+    s_tickOnce = false;
 }
 
 static void Draw()
 {
     {
         matrix4 m = s_circle.m_phys->GetTransform();
-        m = m.t();
+        m.transpose();
         s_circle.m_geo->Draw(m);
     }
     
     {
         matrix4 m = s_board.m_phys->GetTransform();
-        m = m.t();
+        m.transpose();
         DrawParams p;
         p.drawType = DrawType_Triangles;
         p.color = { 1.0f, 0.0f, 0.0f, 0.5f };
@@ -90,8 +93,6 @@ static void CreateCircle()
 static void CreateBoard()
 {
     s_board.m_geo = new BoxGeometry(50.f, 50.f, 2.f);
-
-    constexpr float CIRCLE_SIZE = 5.0f;
 
     StaticPhysicsData physData;
     physData.m_elasticity = 0.0f;

@@ -16,6 +16,7 @@ struct PlatformParams
     int windowPos[2];
     platformUpdateFn updateCallback;
     platformDrawFn drawCallback;
+    float tickLengthMs = (1000.f / 30.f);
 };
 void Platform_Run(const PlatformParams& fns);
 

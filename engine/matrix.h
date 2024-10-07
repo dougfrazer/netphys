@@ -15,8 +15,8 @@ public:
 public:
 	matrix2()
 	{
-		x1 = 0.0f; x2 = 0.0f;
-		y1 = 0.0f; y2 = 0.0f;
+		x1 = 1.0f; x2 = 0.0f;
+		y1 = 0.0f; y2 = 1.0f;
 	}
 	matrix2(float a1, float a2,
 			float b1, float b2)
@@ -65,13 +65,18 @@ public:
 		return v;
 	}
 
-	// inverse
-	matrix3 t() const
+	matrix3 transpose_get() const
 	{
-		matrix3 m(x1, y1, z1,
-				  x2, y2, z2,
-				  x3, y3, z3);
+		matrix3 m = *this;
+		m.transpose();
 		return m;
+	}
+
+	void transpose()
+	{
+		*this = matrix3(x1, y1, z1,
+			            x2, y2, z2,
+			            x3, y3, z3);
 	}
 
 	// determinent
@@ -80,7 +85,6 @@ public:
 		return x1*y2*z3 - x1*y3*z2 + x2*y3*z1 - x2*y1*z3 + x3*y1*z2 - x3*y2*z1;
 	}
 
-	// transpose
 	matrix3 inv() const
 	{
 		matrix3 m;
@@ -100,7 +104,7 @@ public:
 };
 
 //******************************************************************************
-// skew_symmetric_matrix4 - Skew-Symmetric Three-Dimensional Matrix
+// column major 4x4 Matrix
 //******************************************************************************
 class matrix4
 {
@@ -151,6 +155,14 @@ public:
 	{
 		return operator*(vector4({B.x,B.y,B.z,1.0f}));
 	}
+	void operator*=(float v)
+	{
+		x1 *= v; x2 *= v; x3 *= v; x4 *= v;
+		y1 *= v; y2 *= v; y3 *= v; y4 *= v;
+		z1 *= v; z2 *= v; z3 *= v; z4 *= v;
+		w1 *= v; w2 *= v; w3 *= v; w4 *= v;
+	}
+
 	matrix4 operator*(const matrix4& b) const
 	{
 		matrix4 m; 
@@ -200,45 +212,72 @@ public:
 	// inverse
 	matrix4 inv() const
 	{
-		matrix4 m;
-		assert(false);
-		/*
-		float d = det();
-		m.x1 = matrix3( y2, y3, z2, z3 ).det() / d;
-		m.x2 = matrix3( x3, x2, z3, z2 ).det() / d;
-		m.x3 = matrix3( x2, x3, y2, y3 ).det() / d;
-		m.y1 = matrix3( y3, y1, z3, z1 ).det() / d;
-		m.y2 = matrix3( x1, x3, z1, z3 ).det() / d;
-		m.y3 = matrix3( x3, x1, y3, y1 ).det() / d;
-		m.z1 = matrix3( y1, y2, z1, z2 ).det() / d;
-		m.z2 = matrix3( x2, x1, z2, z1 ).det() / d;
-		m.z3 = matrix3( x1, x2, y1, y2 ).det() / d;
-		*/
+		// get cofactors of minor matrices
+		float cofactor_x1 = matrix3(y2,y3,y4,z2,z3,z4,w2,w3,w4).det();
+		float cofactor_x2 = matrix3(y1,y3,y4,z1,z3,z4,w1,w3,w4).det();
+		float cofactor_x3 = matrix3(y1,y2,y4,z1,z2,z4,w1,w2,w4).det();
+		float cofactor_x4 = matrix3(y1,y2,y3,z1,z2,z3,w1,w2,w3).det();
+
+		float cofactor_y1 = matrix3(x2,x3,x4,z2,z3,z4,w2,w3,w4).det();
+		float cofactor_y2 = matrix3(x1,x3,x4,z1,z3,z4,w1,w3,w4).det();
+		float cofactor_y3 = matrix3(x1,x2,x4,z1,z2,z4,w1,w2,w4).det();
+		float cofactor_y4 = matrix3(x1,x2,x3,z1,z2,z3,w1,w2,w3).det();
+
+		float cofactor_z1 = matrix3(x2,x3,x4,y2,y3,y4,w2,w3,w4).det();
+		float cofactor_z2 = matrix3(x1,x3,x4,y1,y3,y4,w1,w3,w4).det();
+		float cofactor_z3 = matrix3(x1,x2,x4,y1,y2,y4,w1,w2,w4).det();
+		float cofactor_z4 = matrix3(x1,x2,x3,y1,y2,y3,w1,w2,w3).det();
+
+		float cofactor_w1 = matrix3(x2,x3,x4,y2,y3,y4,z2,z3,z4).det();
+		float cofactor_w2 = matrix3(x1,x3,x4,y1,y3,y4,z1,z3,z4).det();
+		float cofactor_w3 = matrix3(x1,x2,x4,y1,y2,y4,z1,z2,z4).det();
+		float cofactor_w4 = matrix3(x1,x2,x3,y1,y2,y3,z1,z2,z3).det();
+
+		float determinant = x1*cofactor_x1 - x2*cofactor_x2 + x3*cofactor_x3 - x4*cofactor_x4;
+		float inv_det = 1.0f / determinant;
+
+		matrix4 m(
+			 cofactor_x1, -cofactor_y1,  cofactor_z1, -cofactor_w1,
+			-cofactor_x2,  cofactor_y2, -cofactor_z2,  cofactor_w2,
+			 cofactor_x3, -cofactor_y3,  cofactor_z3, -cofactor_w3,
+			-cofactor_x4,  cofactor_y4, -cofactor_z4,  cofactor_w4);
+
+		m *= inv_det;
 
 		return m;
 	}
 
-	// determinent
-	float   det() const
+	// determinant
+	float det() const
 	{
-			return x1*y2*z3*w4 + x1*y3*z4*w2 + x1*y4*z2*w3
-				 + x2*y1*z4*w3 + x2*y3*z1*w4 + x2*y4*z3*w1
-				 + x3*y1*z2*w4 + x3*y2*z4*w1 + x3*y4*z1*w2
-				 + x4*y1*z3*w2 + x4*y2*z1*w3 + x4*y3*z2*w1
-				 - x1*y2*z4*w3 - x1*y3*z2*w4 - x1*y4*z3*w2
-				 - x2*y1*z3*w4 - x2*y3*z4*w1 - x2*y4*z1*w3
-				 - x3*y1*z4*w2 - x3*y2*z1*w4 - x3*y4*z2*w1
-				 - x4*y1*z2*w3 - x4*y2*z3*w1 - x4*y3*z1*w2 ;
+		// logically it is doing this
+		//return x1 * matrix3(y2, y3, y4, z2, z3, z4, w2, w3, w4).det()
+		//	   - x2 * matrix3(y1, y3, y4, z1, z3, z4, w1, w3, w4).det()
+		//	   + x3 * matrix3(y1, y2, y4, z1, z2, z4, w1, w2, w4).det()
+		//	   - x4 * matrix3(y1, y2, y3, z1, z2, z3, w1, w2, w3).det();
+
+		// but i manually unrolled it to prevent unnecessary operations
+		return x1 * (y2*z3*w4 + y3*z4*w2 + y4*z2*w3 - y2*z4*w3 - y3*z2*w4 - y4*z3*w2)
+		     - x2 * (y1*z4*w3 + y3*z1*w4 + y4*z3*w1 - y1*z3*w4 - y3*z4*w1 - y4*z1*w3)
+		     + x3 * (y1*z2*w4 + y2*z4*w1 + y4*z1*w2 - y1*z4*w2 - y2*z1*w4 - y4*z2*w1)
+		     - x4 * (y1*z3*w2 + y2*z1*w3 + y3*z2*w1 - y1*z2*w3 - y2*z3*w1 - y3*z1*w2);
+			
 	}
 
 	// transpose
-	matrix4 t() const
+	matrix4 transpose_get() const
 	{
-		matrix4 m(x1, y1, z1, w1,
-				  x2, y2, z2, w2,
-				  x3, y3, z3, w3,
-				  x4, y4, z4, w4);
+		matrix4 m = *this;
+		m.transpose();
 		return m;
+	}
+
+	void transpose()
+	{
+		*this = matrix4(x1, y1, z1, w1,
+			            x2, y2, z2, w2,
+			            x3, y3, z3, w3,
+			            x4, y4, z4, w4);
 	}
 
 	void rotate(const vector3& r)
@@ -264,8 +303,12 @@ public:
 	}
 	void scale(float s)
 	{
-		x1 = x1 * s;
-		y2 = y2 * s;
-		z3 = z3 * s;
+		scale(s, s, s);
+	}
+	void scale(float x, float y,float z)
+	{
+		x1 *= x; x2 *= x; x3 *= x; x4 *= x;
+		y1 *= y; y2 *= y; y3 *= y; y4 *= y;
+		z1 *= z; z2 *= z; z3 *= z; z4 *= z;
 	}
 };
