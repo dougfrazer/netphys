@@ -51,31 +51,43 @@ struct DrawParams
 	vector4 color = DrawColor_White;
 };
 
-class Geometry
+class PhysicsShape
 {
 public:
-    virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
+    virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const {};
     // Support: Get further point in this shape in the direction specified (using the transform to world space specified)
-    virtual vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const;
+    virtual vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const = 0;
+};
+//******************************************************************************
+class MeshPhysicsShape : public PhysicsShape
+{
+public:
+	virtual void Draw(const class matrix4& transform, const DrawParams* params = nullptr) const;
+	// Support: Get further point in this shape in the direction specified (using the transform to world space specified)
+	virtual vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const;
+
+    // Temporary... eventually will use actual physics shapes describing these rather than meshes
+    void CreateSphere(float radius);
+    void CreateBox(float width, float depth, float height);
 public:
 	Mesh m_mesh;
 };
 //******************************************************************************
-class SphereGeometry : public Geometry
-{
-public:
-    SphereGeometry(float radius);
-    vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const override;
-public:
-    const float m_radius;
-};
-//******************************************************************************
-class BoxGeometry : public Geometry
-{
-public:
-    BoxGeometry(float width, float depth, float height);
-public:
-    float m_sides[3];
-};
+//class SpherePhysicsShape : public PhysicsShape
+//{
+//public:
+//    SpherePhysicsShape(float radius);
+//    vector3 GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const override;
+//public:
+//    const float m_radius;
+//};
+////******************************************************************************
+//class BoxPhysicsShape : public PhysicsShape
+//{
+//public:
+//    BoxPhysicsShape(float width, float depth, float height);
+//public:
+//    float m_sides[3];
+//};
 
 

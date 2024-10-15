@@ -64,19 +64,19 @@ static int GetPointFurthestInNormal(
 }
 
 void PhysUtil_GenerateMinkowskiDifference(
-	const Geometry& a_geo, const matrix4& a_transform,
-	const Geometry& b_geo, const matrix4& b_transform,
+	const MeshPhysicsShape& a_shape, const matrix4& a_transform,
+	const MeshPhysicsShape& b_shape, const matrix4& b_transform,
 	MinkowskiDifference* outDiff)
 {
-	const int numPointsInDiff = a_geo.m_mesh.m_vertexPos.size() * b_geo.m_mesh.m_vertexPos.size();
+	const int numPointsInDiff = (int)a_shape.m_mesh.m_vertexPos.size() * (int)b_shape.m_mesh.m_vertexPos.size();
 	outDiff->allPoints.resize(numPointsInDiff);
 
-	for (int i = 0; i < a_geo.m_mesh.m_vertexPos.size(); i++)
+	for (int i = 0; i < a_shape.m_mesh.m_vertexPos.size(); i++)
 	{
-		for (int j = 0; j < b_geo.m_mesh.m_vertexPos.size(); j++)
+		for (int j = 0; j < b_shape.m_mesh.m_vertexPos.size(); j++)
 		{
-			vector3 t = a_transform * a_geo.m_mesh.m_vertexPos[i];
-			vector3 b = b_transform * b_geo.m_mesh.m_vertexPos[j];
+			vector3 t = a_transform * a_shape.m_mesh.m_vertexPos[i];
+			vector3 b = b_transform * b_shape.m_mesh.m_vertexPos[j];
 			vector3 v = t - b;
 			outDiff->allPoints[i * 4 + j] = v;
 			outDiff->center = outDiff->center + v;

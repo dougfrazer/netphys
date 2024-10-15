@@ -10,7 +10,7 @@
 
 #include "debug_draw.h"
 
-#include "geometry.h"
+#include "physics_shape.h"
 #include "lib.h"
 #include "matrix.h"
 

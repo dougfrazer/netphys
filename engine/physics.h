@@ -4,7 +4,7 @@
 #include "../engine/vector.h"
 #include "../engine/matrix.h"
 
-class Geometry;
+class PhysicsShape;
 
 
 //
@@ -58,7 +58,7 @@ struct StaticPhysicsData
 class Physics
 {
 public:
-    Physics(Geometry* Geo, const StaticPhysicsData& physicsData);
+    Physics(PhysicsShape* shape, const StaticPhysicsData& physicsData);
     ~Physics();
 
 public:
@@ -75,7 +75,7 @@ public:
         return transform;
     }
     COLLISION_RESPONSE GetCollisionResponse() const { return m_static.m_collisionResponseType; }
-    const Geometry* GetGeometry() const { return m_geometry; }
+    const PhysicsShape* GetPhysicsShape() const { return m_physicsShape; }
     
     void ApplyImpulseResponse(CollisionData& data, vector3 normal);
 
@@ -85,7 +85,7 @@ public:
 #endif
 private:
     // constant, for reference
-    const Geometry* m_geometry; // todo: this should be a 'physics geometry' - a limited subset of vertices
+    const PhysicsShape* m_physicsShape;
     const StaticPhysicsData  m_static;
 
     vector3   m_position;
@@ -102,12 +102,15 @@ void Physics_Update(float dt);
 
 struct CollisionParams
 {
-    const Geometry* a;
-    const Geometry* b;
+    const PhysicsShape* a;
+    const PhysicsShape* b;
     matrix4  aTransform;
     matrix4  bTransform;
 };
 bool DetectCollision(const CollisionParams& params, bool is3D, CollisionData* outCollision);
+
+
+
 // separated out for testing purposes
 #ifdef TEST_PROGRAM
 enum COLLISION_RESULT

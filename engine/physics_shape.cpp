@@ -1,4 +1,4 @@
-#include "geometry.h"
+#include "physics_shape.h"
 #include "lib.h"
 
 #include "matrix.h"
@@ -160,6 +160,61 @@ void CreateIcosahadron(float r, int numSubdivisions, Mesh* outMesh)
         outMesh->AddVertex(vertexList[i], vertexList[i]);
     }
 }
+static void CreateBoxMesh(float width, float depth, float height, Mesh& outMesh)
+{
+	const float half_width = width / 2.0f;
+	const float half_depth = width / 2.0f;
+	const float half_height = height / 2.0f;
+
+	std::vector<vector3> corners(8);
+	corners[0] = { half_width, -half_height, -half_depth };
+	corners[1] = { half_width, -half_height,  half_depth };
+	corners[2] = { half_width,  half_height, -half_depth };
+	corners[3] = { half_width,  half_height,  half_depth };
+	corners[4] = { -half_width, -half_height, -half_depth };
+	corners[5] = { -half_width, -half_height,  half_depth };
+	corners[6] = { -half_width,  half_height, -half_depth };
+	corners[7] = { -half_width,  half_height,  half_depth };
+
+	//         
+	//        6 *----------------------* 7                          
+	//         /|                     /|
+	//        / |                    / |
+	//       /  | 4                 /  |
+	//      /   *------------------/---* 5
+	//   2 *----------------------* 3 /   
+	//     |  /                   |  /
+	//     | /                    | /
+	//     |/                     |/
+	//   0 *----------------------* 1       
+	// 
+	//    front        right      back        left         top       bottom
+	//   2     3     3     7     7     6     6     2     6     7    0     1
+	//   *-----*     *-----*     *-----*     *-----*     *-----*    *-----*
+	//   |     |     |     |     |     |     |     |     |     |    |     |
+	//   |     |     |     |     |     |     |     |     |     |    |     |
+	//   *-----*     *-----*     *-----*     *-----*     *-----*    *-----*
+	//   0     1     1     5     5     4     4     0     2     3    4     5
+
+	// front
+	outMesh.AddTriangle(corners[0], corners[1], corners[3], Coordinates::GetOut());
+    outMesh.AddTriangle(corners[0], corners[3], corners[2], Coordinates::GetOut());
+	// right
+    outMesh.AddTriangle(corners[1], corners[5], corners[7], Coordinates::GetRight());
+    outMesh.AddTriangle(corners[1], corners[7], corners[3], Coordinates::GetRight());
+	// back
+    outMesh.AddTriangle(corners[5], corners[4], corners[6], Coordinates::GetIn());
+    outMesh.AddTriangle(corners[5], corners[6], corners[7], Coordinates::GetIn());
+	// left
+    outMesh.AddTriangle(corners[4], corners[0], corners[2], Coordinates::GetLeft());
+    outMesh.AddTriangle(corners[4], corners[2], corners[6], Coordinates::GetLeft());
+	// top
+    outMesh.AddTriangle(corners[2], corners[3], corners[7], Coordinates::GetUp());
+    outMesh.AddTriangle(corners[2], corners[7], corners[6], Coordinates::GetUp());
+	// bottom
+    outMesh.AddTriangle(corners[4], corners[5], corners[1], Coordinates::GetDown());
+    outMesh.AddTriangle(corners[4], corners[1], corners[0], Coordinates::GetDown());
+}
 //-------------------------------------------------------------------------------------------------
 static int GetGLDrawFromDrawType(DrawType t)
 {
@@ -171,7 +226,7 @@ static int GetGLDrawFromDrawType(DrawType t)
     return GL_LINE_STRIP;
 }
 //-------------------------------------------------------------------------------------------------
-void Geometry::Draw(const matrix4& t, const DrawParams* params) const
+void MeshPhysicsShape::Draw(const matrix4& t, const DrawParams* params) const
 {
 	GLfloat modelMatrix[16];
 	glGetFloatv(GL_MODELVIEW_MATRIX, modelMatrix);
@@ -193,14 +248,14 @@ void Geometry::Draw(const matrix4& t, const DrawParams* params) const
 	glVertexPointer(3, GL_FLOAT, 0, &m_mesh.m_vertexPos[0]);
     glNormalPointer(GL_FLOAT, 0, &m_mesh.m_vertexNormals[0]);
     glColor4fv(color);
-	glDrawElements(drawType, m_mesh.m_indices.size(), GL_UNSIGNED_INT, &m_mesh.m_indices[0]);
+	glDrawElements(drawType, (GLsizei)m_mesh.m_indices.size(), GL_UNSIGNED_INT, &m_mesh.m_indices[0]);
     glDisableClientState(GL_NORMAL_ARRAY);
 	glDisableClientState(GL_VERTEX_ARRAY);
 
 	glPopMatrix();
 }
 //-------------------------------------------------------------------------------------------------
-vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
+vector3 MeshPhysicsShape::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
 {
     // not sure this is right...
     // try and get the farthest points (2 for 2d, 3 for 3d) then get
@@ -255,86 +310,47 @@ vector3 Geometry::GetPointFurthestInDirection(const vector3& dir, const matrix4&
     // reverting to what it was before...
     return PhysUtil_GetPointFurthestInDirection(m_mesh.m_vertexPos, dir, world, nullptr);
 }
-//-------------------------------------------------------------------------------------------------
-SphereGeometry::SphereGeometry(float radius)
-    : m_radius(radius)
+void MeshPhysicsShape::CreateSphere(float radius)
 {
-	CreateIcosahadron(radius, 3, &m_mesh);
+    CreateIcosahadron(radius, 3, &m_mesh);
 }
-//-------------------------------------------------------------------------------------------------
-vector3 SphereGeometry::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
+void MeshPhysicsShape::CreateBox(float width, float depth, float height)
 {
-    // This should work...
-    // one of the strengths of GJK is that you should be able to describe shapes very precisely
-    // as long as you can answer the question "get the point furthest in this direction" for a shape.
-    // We should be able to perfectly represent the sphere, rather than the approximation we'd 
-    // have with the mesh.
-    // 
-    // TODO: uncomment and test
-    // 
-    //vector3 dir_normalized = dir.normalize();
-    //
-    //return world * dir_normalized * m_radius;
-
-    return Geometry::GetPointFurthestInDirection(dir, world, is3D);
+    CreateBoxMesh(width, depth, height, m_mesh);
 }
+
+
+
+
+
+
+
+
 //-------------------------------------------------------------------------------------------------
-BoxGeometry::BoxGeometry(float width, float depth, float height)
-{
-    m_sides[0] = width;
-    m_sides[1] = depth;
-    m_sides[2] = height;
-
-    const float half_width = width / 2.0f;
-    const float half_depth = width / 2.0f;
-    const float half_height = height / 2.0f;
-
-    std::vector<vector3> corners(8);
-    corners[0] = {  half_width, -half_height, -half_depth };
-    corners[1] = {  half_width, -half_height,  half_depth };
-    corners[2] = {  half_width,  half_height, -half_depth };
-    corners[3] = {  half_width,  half_height,  half_depth };
-    corners[4] = { -half_width, -half_height, -half_depth };
-    corners[5] = { -half_width, -half_height,  half_depth };
-    corners[6] = { -half_width,  half_height, -half_depth };
-    corners[7] = { -half_width,  half_height,  half_depth };
-
-    //         
-    //        6 *----------------------* 7                          
-    //         /|                     /|
-    //        / |                    / |
-    //       /  | 4                 /  |
-    //      /   *------------------/---* 5
-    //   2 *----------------------* 3 /   
-    //     |  /                   |  /
-    //     | /                    | /
-    //     |/                     |/
-    //   0 *----------------------* 1       
-    // 
-    //    front        right      back        left         top       bottom
-    //   2     3     3     7     7     6     6     2     6     7    0     1
-    //   *-----*     *-----*     *-----*     *-----*     *-----*    *-----*
-    //   |     |     |     |     |     |     |     |     |     |    |     |
-    //   |     |     |     |     |     |     |     |     |     |    |     |
-    //   *-----*     *-----*     *-----*     *-----*     *-----*    *-----*
-    //   0     1     1     5     5     4     4     0     2     3    4     5
-    
-    // front
-    m_mesh.AddTriangle(corners[0], corners[1], corners[3], Coordinates::GetOut());
-    m_mesh.AddTriangle(corners[0], corners[3], corners[2], Coordinates::GetOut());
-    // right
-	m_mesh.AddTriangle(corners[1], corners[5], corners[7], Coordinates::GetRight());
-	m_mesh.AddTriangle(corners[1], corners[7], corners[3], Coordinates::GetRight());
-    // back
-	m_mesh.AddTriangle(corners[5], corners[4], corners[6], Coordinates::GetIn());
-	m_mesh.AddTriangle(corners[5], corners[6], corners[7], Coordinates::GetIn());
-    // left
-	m_mesh.AddTriangle(corners[4], corners[0], corners[2], Coordinates::GetLeft());
-	m_mesh.AddTriangle(corners[4], corners[2], corners[6], Coordinates::GetLeft());
-    // top
-	m_mesh.AddTriangle(corners[2], corners[3], corners[7], Coordinates::GetUp());
-	m_mesh.AddTriangle(corners[2], corners[7], corners[6], Coordinates::GetUp());
-    // bottom
-	m_mesh.AddTriangle(corners[4], corners[5], corners[1], Coordinates::GetDown());
-	m_mesh.AddTriangle(corners[4], corners[1], corners[0], Coordinates::GetDown());
-}
+//SpherePhysicsShape::SpherePhysicsShape(float radius)
+//    : m_radius(radius)
+//{
+//	CreateIcosahadron(radius, 3, &m_mesh);
+//}
+//-------------------------------------------------------------------------------------------------
+//vector3 SpherePhysicsShape::GetPointFurthestInDirection(const vector3& dir, const matrix4& world, bool is3D) const
+//{
+//    // This should work...
+//    // one of the strengths of GJK is that you should be able to describe shapes very precisely
+//    // as long as you can answer the question "get the point furthest in this direction" for a shape.
+//    // We should be able to perfectly represent the sphere, rather than the approximation we'd 
+//    // have with the mesh.
+//    // 
+//    // TODO: uncomment and test
+//    // 
+//    //vector3 dir_normalized = dir.normalize();
+//    //
+//    //return world * dir_normalized * m_radius;
+//
+//    return PhysicsShape::GetPointFurthestInDirection(dir, world, is3D);
+//}
+//-------------------------------------------------------------------------------------------------
+//BoxPhysicsShape::BoxPhysicsShape(float width, float depth, float height)
+//{
+//    CreateBox(height, width, depth, m_mesh);
+//}

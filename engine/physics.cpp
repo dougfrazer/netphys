@@ -1,6 +1,6 @@
 #include "physics.h"
 
-#include "geometry.h"
+#include "physics_shape.h"
 #include <vector>
 #include <list>
 
@@ -8,8 +8,8 @@
 
 static std::vector<Physics*> s_physicsList(0);
 
-Physics::Physics(Geometry* Geo, const StaticPhysicsData& physicsData)
-    : m_geometry(Geo)
+Physics::Physics(PhysicsShape* shape, const StaticPhysicsData& physicsData)
+    : m_physicsShape(shape)
     , m_static(physicsData)
 {
     m_position = physicsData.m_initialPosition;
@@ -126,13 +126,13 @@ std::vector<Collision> GetCollisions(std::vector<Physics*> updateList)
             Physics* b = *innerIt;
             CollisionData collisionData;
             CollisionParams p;
-            p.a = a->GetGeometry();
+            p.a = a->GetPhysicsShape();
             #ifdef TEST_PROGRAM
             vector3 r = a->GetRotation();
             vector3 d = a->GetPosition();
             #endif
             p.aTransform = a->GetTransform();
-            p.b = b->GetGeometry();
+            p.b = b->GetPhysicsShape();
             p.bTransform = b->GetTransform();
             if (DetectCollision(p, true, &collisionData))
             {

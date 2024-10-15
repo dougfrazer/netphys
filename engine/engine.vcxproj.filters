@@ -33,7 +33,7 @@
     <ClInclude Include="physics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="geometry.h">
+    <ClInclude Include="physics_shape.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="platform.h">
@@ -71,7 +71,7 @@
     <ClCompile Include="windows.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="geometry.cpp">
+    <ClCompile Include="physics_shape.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="test_physics.cpp">

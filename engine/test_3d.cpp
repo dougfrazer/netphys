@@ -4,7 +4,7 @@
 #include "physics.h"
 #include "lib.h"
 #include "simplex.h"
-#include "geometry.h"
+#include "physics_shape.h"
 #include "debug_draw.h"
 #include <vector>
 
@@ -14,13 +14,13 @@
 
 static struct
 {
-	SphereGeometry* m_geo = nullptr;
+	MeshPhysicsShape* m_shape = nullptr;
 	Physics* m_phys = nullptr;
 } s_circle;
 
 static struct
 {
-	BoxGeometry* m_geo = nullptr;
+	MeshPhysicsShape* m_shape = nullptr;
 	Physics* m_phys = nullptr;
 } s_board;
 
@@ -41,6 +41,7 @@ static void ResetSimplex()
 	s_simplex.verts[0].A = s_collisionParams.aTransform * a_local;
 	s_simplex.verts[0].B = s_collisionParams.bTransform * b_local;
 	s_simplex.verts[0].p = s_simplex.verts[0].A - s_simplex.verts[0].B;
+	s_simplex.faces.clear();
 	s_simplex.m_containsOrigin = false;
 	s_searchDirection = GetSearchDirection(s_simplex);
 	s_result = COLLISION_RESULT_NONE;
@@ -65,13 +66,17 @@ static void HandleInput(float dt)
 				{
 					s_searchDirection = GetSearchDirection(s_simplex);
 				}
+				if (s_simplex.m_containsOrigin)
+				{
+					s_simplex.SetupForEPA();
+				}
 			}
 			break;
 
 			case COLLISION_RESULT_NO_OVERLAP:
 			case COLLISION_RESULT_OVERLAP:
 			{
-				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, 20, true, &s_collisionData);
+				s_collisionFound = FindIntersectionPoints(s_collisionParams, s_simplex, 1, true, &s_collisionData);
 			}
 			break;
 
@@ -171,6 +176,8 @@ static void Draw()
 
 		DrawCoordinateAxis();
 
+		glEnable(GL_COLOR_MATERIAL);
+
 		const vector4 simplexColor = { 0.5f, 0.5f, 0.5f, 0.2f };
 		const vector4 searchDirectionColor = { 0.9f, 0.9f, 0.9f, 0.7f };
 		switch (s_simplex.size())
@@ -256,34 +263,55 @@ static void Draw()
 			}
 			break;
 
-			case 4:
+			default:
 			{
-				DebugDraw_AddString("4 simplex", 0, textPos, TEXT_COLOR_WHITE);
+				char buf[128];
+				sprintf_s(buf, 128, "%d simplex", (int)s_simplex.verts.size());
+				DebugDraw_AddString(buf, 0, textPos, TEXT_COLOR_WHITE);
 				textPos += text_height;
 
-				//  ABC, ACD, DBA, BDC
-				glBegin(GL_TRIANGLES);
-				glColor4f(0.2f, 0.2f, 0.2f, 1.0f);
-				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
-					
-				glColor4f(0.4f, 0.4f, 0.4f, 1.0f);
-				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
-					
-				glColor4f(0.6f, 0.6f, 0.6f, 1.0f);
-				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
-					
-				glColor4f(0.8f, 0.8f, 0.8f, 1.0f);
-				glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
-				glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
-				glEnd();
+				if (s_simplex.faces.size() > 0)
+				{
+					glBegin(GL_TRIANGLES);
+					float color = 0.1f;
+					for (int i = 0; i < s_simplex.faces.size(); i++)
+					{
+						float color = fmod(0.5f + 0.05f*i, 1.0f);
+						glColor4f(color, color, color, 1.0f);
+						int va = s_simplex.faces[i].point_index[0];
+						int vb = s_simplex.faces[i].point_index[1];
+						int vc = s_simplex.faces[i].point_index[2];
+						glVertex3fv((GLfloat*)(&s_simplex.verts[va].p));
+						glVertex3fv((GLfloat*)(&s_simplex.verts[vb].p));
+						glVertex3fv((GLfloat*)(&s_simplex.verts[vc].p));
+					}
+					glEnd();
+				}
+				else
+				{
+					//  ABC, ACD, DBA, BDC
+					glBegin(GL_TRIANGLES);
+					glColor4f(0.5f, 0.5f, 0.5f, 1.0f);
+					glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
 
+					glColor4f(0.55f, 0.55f, 0.55f, 1.0f);
+					glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
+
+					glColor4f(0.6f, 0.6f, 0.6f, 1.0f);
+					glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[0].p));
+
+					glColor4f(0.65f, 0.65f, 0.65f, 1.0f);
+					glVertex3fv((GLfloat*)(&s_simplex.verts[1].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[3].p));
+					glVertex3fv((GLfloat*)(&s_simplex.verts[2].p));
+					glEnd();
+				}
 			}
 			break;
 		}
@@ -345,7 +373,7 @@ static void Draw()
 			DrawParams p;
 			p.drawType = DrawType_WireFrame;
 			p.color = vector4(0.0f, 0.2f, 0.0f, 0.7f);
-			s_circle.m_geo->Draw(m, &p);
+			s_circle.m_shape->Draw(m, &p);
 		}
 
 		{
@@ -354,7 +382,7 @@ static void Draw()
 			DrawParams p;
 			p.drawType = DrawType_Triangles;
 			p.color = vector4(0.2f, 0.0f, 0.0f, 0.7f);
-			s_board.m_geo->Draw(m, &p);
+			s_board.m_shape->Draw(m, &p);
 		}
 	}
 
@@ -374,7 +402,7 @@ static void Draw()
 		DrawParams p;
 		p.drawType = DrawType_WireFrame;
 		p.color = DrawColor_Blue;
-		s_circle.m_geo->Draw(m, &p);
+		s_circle.m_shape->Draw(m, &p);
 	}
 
 }
@@ -382,8 +410,8 @@ static void Draw()
 static void CreateCircle()
 {
 	constexpr float CIRCLE_SIZE = 5.0f;
-
-	s_circle.m_geo = new SphereGeometry(CIRCLE_SIZE);
+	s_circle.m_shape = new MeshPhysicsShape();
+	s_circle.m_shape->CreateSphere(CIRCLE_SIZE);
 
 	StaticPhysicsData physData;
 	physData.m_gravity = { 0.0f, 0.0f, 0.0f };
@@ -402,12 +430,13 @@ static void CreateCircle()
 									   0.0f, 0.0f, physData.m_momentOfInertia);
 	physData.m_inverseInertiaTensor = physData.m_inertiaTensor.inv();
 	physData.m_collisionResponseType = COLLISION_RESPONSE_IMPULSE;
-	s_circle.m_phys = new Physics(s_circle.m_geo, physData);
+	s_circle.m_phys = new Physics(s_circle.m_shape, physData);
 }
 
 static void CreateBoard()
 {
-	s_board.m_geo = new BoxGeometry(50.f,50.f,0.1f);
+	s_board.m_shape = new MeshPhysicsShape();
+	s_board.m_shape->CreateBox(50.f,50.f,0.1f);
 
 	StaticPhysicsData physData;
 	physData.m_elasticity = 0.0f;
@@ -416,7 +445,7 @@ static void CreateBoard()
 	physData.m_initialPosition = { 0.0f, 0.0f, 0.0f };
 	physData.m_initialRotation = { 0.0f };
 
-	s_board.m_phys = new Physics(s_board.m_geo, physData);
+	s_board.m_phys = new Physics(s_board.m_shape, physData);
 }
 
 void Test3D()
@@ -424,9 +453,9 @@ void Test3D()
 	CreateCircle();
 	CreateBoard();
 
-	s_collisionParams.a = s_circle.m_geo;
+	s_collisionParams.a = s_circle.m_shape;
 	s_collisionParams.aTransform = s_circle.m_phys->GetTransform();
-	s_collisionParams.b = s_board.m_geo;
+	s_collisionParams.b = s_board.m_shape;
 	s_collisionParams.bTransform = s_board.m_phys->GetTransform();
 	const vector3& destination = vector3();
 	s_iterCount = 0;

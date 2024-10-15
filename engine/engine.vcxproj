@@ -129,7 +129,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="debug_draw.h" />
-    <ClInclude Include="geometry.h" />
+    <ClInclude Include="physics_shape.h" />
     <ClInclude Include="lib.h" />
     <ClInclude Include="matrix.h" />
     <ClInclude Include="physics.h" />
@@ -145,7 +145,7 @@
   <ItemGroup>
     <ClCompile Include="collision_detection.cpp" />
     <ClCompile Include="debug_draw.cpp" />
-    <ClCompile Include="geometry.cpp" />
+    <ClCompile Include="physics_shape.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="physics.cpp" />
     <ClCompile Include="physics_util.cpp" />

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry.h"
+#include "physics_shape.h"
 
 vector3 PhysUtil_GetPointFurthestInDirection(
 	const std::vector<vector3>& points, 
@@ -17,7 +17,7 @@ struct MinkowskiDifference
 };
 
 void PhysUtil_GenerateMinkowskiDifference(
-	const Geometry& a, const matrix4& a_transform,
-	const Geometry& b, const matrix4& b_transform,
+	const MeshPhysicsShape& a, const matrix4& a_transform,
+	const MeshPhysicsShape& b, const matrix4& b_transform,
 	MinkowskiDifference* outDiff);
 #endif

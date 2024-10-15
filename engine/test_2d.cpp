@@ -6,7 +6,7 @@
 #include "physics.h"
 #include "lib.h"
 #include "simplex.h"
-#include "geometry.h"
+#include "physics_shape.h"
 #include "debug_draw.h"
 #include "util.h"
 #include "physics_util.h"
@@ -18,8 +18,8 @@
 
 static bool s_diffView = false;
 
-static Geometry s_triangle;
-static Geometry s_box;
+static MeshPhysicsShape s_triangle;
+static MeshPhysicsShape s_box;
 
 static matrix4 s_triangleTransform;
 static matrix4 s_boxTransform;

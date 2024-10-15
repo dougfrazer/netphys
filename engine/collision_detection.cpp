@@ -1,7 +1,7 @@
 
 #include "vector.h"
 #include "matrix.h"
-#include "geometry.h"
+#include "physics_shape.h"
 #include "physics.h"
 #include "plane.h"
 #include "util.h"
@@ -289,7 +289,7 @@ static void GetClosestEdgeToOrigin(const Simplex& simplex, float& distance, floa
 	u = bestU;
 }
 //******************************************************************************
-static void GetClosestTriangleToOrigin(const Simplex& simplex, float& distance, float& u, float& v, int& va_index, int& vb_index, int& vc_index)
+static void GetClosestTriangleToOrigin(const Simplex& simplex, float& distance, float& u, float& v, int& face_index)
 {
 	//  - distance = distance from the origin
 	//  - u,v = percentage along the edge (A + u(B-A) + v(C-A)) to get the intersection point
@@ -297,11 +297,11 @@ static void GetClosestTriangleToOrigin(const Simplex& simplex, float& distance, 
 	float bestDistSq = FLT_MAX;
 	float bestU = 0.0f;
 	float bestV = 0.0f;
-	for (int i = 0; i < simplex.verts.size(); i++)
+	for (int i = 0; i < simplex.faces.size(); i++)
 	{
-		int va = i;
-		int vb = va == simplex.verts.size() - 1 ? 0 : va + 1;
-		int vc = vb == simplex.verts.size() - 1 ? 0 : vb + 1;
+		int va = simplex.faces[i].point_index[0];
+		int vb = simplex.faces[i].point_index[1];
+		int vc = simplex.faces[i].point_index[2];
 		const vector3& a = simplex.verts[va].p;
 		const vector3& b = simplex.verts[vb].p;
 		const vector3& c = simplex.verts[vc].p;
@@ -311,9 +311,7 @@ static void GetClosestTriangleToOrigin(const Simplex& simplex, float& distance, 
 		if (distanceSq < bestDistSq)
 		{
 			bestDistSq = distanceSq;
-			va_index = va;
-			vb_index = vb;
-			vc_index = vc;
+			face_index = i;
 			bestU = u;
 			bestV = v;
 		}
@@ -360,8 +358,9 @@ vector3 GetSearchDirection(const Simplex& simplex)
 // There are some assumptions baked into this that it is called only after 
 // the DetectCollision() functions
 //******************************************************************************
-static void GetNormalAwayFromOrigin(const Simplex& simplex, bool is3D, vector3 *outNormal, float* outDistance, int* simplex_a, int* simplex_b, int* simplex_c)
+static void GetClosestNormalAwayFromOrigin(const Simplex& simplex, bool is3D, vector3 *outNormal, float* outDistance, int* out_simplex_a, int* out_simplex_b, int* out_face_index)
 {
+	// Will return an edge for 2D and a triangle for 3D
 	if(!is3D)
 	{
 		// First: find the closest edge in our simplex to the origin
@@ -378,9 +377,8 @@ static void GetNormalAwayFromOrigin(const Simplex& simplex, bool is3D, vector3 *
 		const vector3 n = vector3(edge.y, -edge.x, 0.0f); // can ignore Z since this is 2D... TODO use vector2 instead
 		const vector3 normal_to_edge = closest_point_to_origin.dot(n) > 0.0f ? n : -n; // this should be going away from the origin
 
-		*simplex_a = startIndex;
-		*simplex_b = endIndex;
-		*simplex_c = -1; // not used in 2d
+		*out_simplex_a = startIndex;
+		*out_simplex_b = endIndex;
 		*outDistance = distance;
 		*outNormal = normal_to_edge;
 	}
@@ -389,10 +387,13 @@ static void GetNormalAwayFromOrigin(const Simplex& simplex, bool is3D, vector3 *
 		// First: find the closest edge in our simplex to the origin
 		float distance = 0.0f;
 		float u, v;
-		int va, vb, vc;
-		GetClosestTriangleToOrigin(simplex, distance, u, v, va, vb, vc);
+		int face_index;
+		GetClosestTriangleToOrigin(simplex, distance, u, v, face_index);
 
-		bool closeEnough = false;
+		int va = simplex.faces[face_index].point_index[0];
+		int vb = simplex.faces[face_index].point_index[1];
+		int vc = simplex.faces[face_index].point_index[2];
+
 		const vector3& a = simplex.verts[va].p;
 		const vector3& b = simplex.verts[vb].p;
 		const vector3& c = simplex.verts[vc].p;
@@ -402,11 +403,9 @@ static void GetNormalAwayFromOrigin(const Simplex& simplex, bool is3D, vector3 *
 		const vector3 closest_point_to_origin = a + (b - a) * u + (c - a) * v;
 		const vector3 normal = closest_point_to_origin.dot(n) > 0.0f ? n : -n; // pick the normal going away from the origin
 
-		*simplex_a = va;
-		*simplex_b = vb;
-		*simplex_c = vc;
+		*out_face_index = face_index;
 		*outDistance = distance;
-		*outNormal = normal;
+		*outNormal = simplex.faces[face_index].normal;
 	}
 }
 //******************************************************************************
@@ -417,9 +416,9 @@ static bool FindIntersectionPointsStep(const CollisionParams& params, Simplex& s
 
 	bool closeEnough = false;
 	float distance = 0.0f;
-	int simplex_a, simplex_b, simplex_c;
+	int simplex_a, simplex_b, face_index;
 	vector3 normal;
-	GetNormalAwayFromOrigin(simplex, is3D, &normal, &distance, &simplex_a, &simplex_b, &simplex_c);
+	GetClosestNormalAwayFromOrigin(simplex, is3D, &normal, &distance, &simplex_a, &simplex_b, &face_index);
 
 	constexpr float TOLERANCE = 0.01f;
 	if (distance > TOLERANCE)
@@ -438,12 +437,9 @@ static bool FindIntersectionPointsStep(const CollisionParams& params, Simplex& s
 			if (vector3::Equals(a_support, simplex.verts[i].A, TOLERANCE) &&
 				vector3::Equals(b_support, simplex.verts[i].B, TOLERANCE))
 			{
-				// this should be one of the points on the edge closest to the origin
-				// todo: check this assertion... it makes sense because if we pushed furthest in the
-				//       normal of this face, the points returned should be on this face if there
-				//       is nowhere left to go... but its tripping for now so gonna comment it out
-				//assert(i == va || i == vb || i == vc);
-
+				// if we already added this support point, then the last iteration must have found
+				// the same support point being the closest to the origin, and we must have reached our
+				// exterior hull
 				closeEnough = true;
 				break;
 			}
@@ -464,9 +460,61 @@ static bool FindIntersectionPointsStep(const CollisionParams& params, Simplex& s
 			}
 			else
 			{
-				// for 3D its more complicated, we need to remove the face specified by (simplex_a,simplex_b,simplex_c) and add 3 new faces
+				// for 3D its more complicated
+				// find all faces pointing in the direction of the simplex
+				// remove them all
+				// keep all the unique outer edges and add them relative to the new point
 
-				// TODO
+				
+				struct UniqueEdges
+				{
+					struct Edge
+					{
+						int va;
+						int vb;
+					};
+					std::vector<Edge> edges;
+					void AddIfUnique(int va, int vb)
+					{
+						// if the reverse edge exists, erase it.. we'll get degenerate triangles
+						// otherwise, add it, this is a unique outer edge
+						auto it = std::find_if(edges.begin(), edges.end(), [va,vb](const Edge& e) { return e.va == vb && e.vb == va; });
+						if (it != edges.end())
+						{
+							edges.erase(it);
+						}
+						else
+						{
+							edges.push_back({va, vb});
+						}
+					}
+				};
+				UniqueEdges uniqueEdges;
+
+				for (auto it = simplex.faces.begin(); it != simplex.faces.end();)
+				{
+					const SimplexFace& face = *it;
+					const bool faceIsInDirectionOfSupport = face.normal.dot(support) > 0;
+					if (faceIsInDirectionOfSupport)
+					{
+						uniqueEdges.AddIfUnique(face.point_index[0], face.point_index[1]);
+						uniqueEdges.AddIfUnique(face.point_index[1], face.point_index[2]);
+						uniqueEdges.AddIfUnique(face.point_index[2], face.point_index[0]);
+
+						it = simplex.faces.erase(it);
+					}
+					else
+					{
+						++it;
+					}
+				}
+
+				int new_index = simplex.insert(new_point);
+
+				for (int i = 0; i < uniqueEdges.edges.size(); i++)
+				{
+					simplex.AddFace(uniqueEdges.edges[i].va, uniqueEdges.edges[i].vb, new_index);
+				}
 			}
 			
 			return false;
@@ -479,7 +527,7 @@ static bool FindIntersectionPointsStep(const CollisionParams& params, Simplex& s
 
 	assert(closeEnough);
 
-	outCollision->penetrationDirection = normal.normalize();
+	outCollision->penetrationDirection = -normal.normalize();
 	outCollision->depth = distance;
 
 	// No idea if this is right, total shot in the dark
@@ -521,8 +569,12 @@ bool FindIntersectionPoints(const CollisionParams& params, Simplex& simplex, int
 
 		float distance = 0.0f;
 		float u, v;
-		int va, vb, vc;
-		GetClosestTriangleToOrigin(simplex, distance, u, v, va, vb, vc);
+		int face_index;
+		GetClosestTriangleToOrigin(simplex, distance, u, v, face_index);
+
+		int va = simplex.faces[face_index].point_index[0];
+		int vb = simplex.faces[face_index].point_index[1];
+		int vc = simplex.faces[face_index].point_index[2];
 
 		const vector3& a = simplex.verts[va].p;
 		const vector3& b = simplex.verts[vb].p;
@@ -661,6 +713,15 @@ bool DetectCollision(const CollisionParams& params, bool is3D, CollisionData* ou
 	}
 	assert(iterCount < maxIterations); // if we bailed due to iterations... we have undefined collision
 	assert(result != COLLISION_RESULT_CONTINUE);
+
+	if (result == COLLISION_RESULT_OVERLAP)
+	{
+		assert(simplex.m_containsOrigin);
+		if (is3D)
+		{
+			simplex.SetupForEPA();
+		}
+	}
 
 	if (outCollision)
 	{
